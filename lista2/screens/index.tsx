@@ -1,0 +1,11 @@
+export { default as Um } from './Um';
+export { default as Dois } from './Dois';
+export { default as Tres } from './Tres';
+export { default as Quatro } from './Quatro';
+export { default as Cinco } from './Cinco';
+export { default as Seis } from './Seis';
+export { default as Sete } from './Sete';
+export { default as Oito } from './Oito';
+export { default as Nove } from './Nove';
+export { default as Dez } from './Dez';
+//export { default as Onze } from './Onze';
