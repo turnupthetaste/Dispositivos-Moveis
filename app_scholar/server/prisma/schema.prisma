@@ -1,0 +1,94 @@
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+/** JÁ EXISTENTE **/
+model User {
+  id        String   @id @default(cuid())
+  name      String
+  email     String   @unique
+  password  String
+  role      Role     @default(USER)
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+}
+
+/** NOVO: Entrega 2 **/
+model Aluno {
+  id        String   @id @default(cuid())
+  nome      String
+  email     String
+  matricula String
+  curso     String        // você usa um texto simples na tela
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  notas Nota[]
+}
+
+model Curso {
+  id        String   @id @default(cuid())
+  nome      String
+  turno     String   // 'matutino' | 'vespertino' | 'noturno'
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  disciplinas Disciplina[]
+}
+
+model Professor {
+  id            String   @id @default(cuid())
+  nome          String
+  titulacao     String
+  tempoDocencia String
+  createdAt     DateTime @default(now())
+  updatedAt     DateTime @updatedAt
+
+  disciplinas Disciplina[]
+}
+
+model Disciplina {
+  id           String    @id @default(cuid())
+  nome         String
+  cargaHoraria Int
+  createdAt    DateTime  @default(now())
+  updatedAt    DateTime  @updatedAt
+
+  // relacionais opcionais (a UI manda IDs opcionais)
+  cursoId     String?
+  professorId String?
+  curso       Curso?     @relation(fields: [cursoId], references: [id])
+  professor   Professor? @relation(fields: [professorId], references: [id])
+
+  notas Nota[]
+}
+
+/** Usado na Entrega 3 (boletim/notas) **/
+model Nota {
+  id           String     @id @default(cuid())
+  n1           Float      @default(0)
+  n2           Float      @default(0)
+  createdAt    DateTime   @default(now())
+  updatedAt    DateTime   @updatedAt
+
+  // Chaves para identificar a nota
+  disciplinaId String
+  alunoId      String?
+  disciplina   Disciplina @relation(fields: [disciplinaId], references: [id])
+  aluno        Aluno?     @relation(fields: [alunoId], references: [id])
+
+  @@index([disciplinaId])
+  @@index([alunoId])
+  @@unique([disciplinaId, alunoId]) // garante 1 registro por disciplina por aluno (ou único global se alunoId for null)
+}
+
+enum Role {
+  ADMIN
+  MANAGER
+  USER
+}
