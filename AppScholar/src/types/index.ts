@@ -25,3 +25,24 @@ export interface ViaCepResponse {
   siafi?: string;
   erro?: boolean;
 }
+
+
+
+export type AppDrawerParamList = {
+  Perfil: undefined;
+  Cadastros: undefined;
+  Boletim: undefined;
+  Avisos: undefined; // ✅ NOVO
+};
+
+export type AvisosStackParamList = {
+  ListaAvisos: undefined;
+  DetalheAviso: { id: string };
+  NovoAviso: undefined;
+  EditarAviso: { id: string };
+};
+
+export type AuthStackParamList = {
+  Login: undefined;
+  Registro: undefined;
+};

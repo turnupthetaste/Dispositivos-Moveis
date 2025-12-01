@@ -1,73 +1,129 @@
 // App.tsx
 import React from 'react';
-import { ActivityIndicator, View } from 'react-native';
+import { ActivityIndicator, View, Text } from 'react-native';
 import { NavigationContainer } from '@react-navigation/native';
 import { createDrawerNavigator, DrawerToggleButton } from '@react-navigation/drawer';
 import { createNativeStackNavigator } from '@react-navigation/native-stack';
 import { GestureHandlerRootView } from 'react-native-gesture-handler';
 import Ionicons from '@expo/vector-icons/Ionicons';
+
 import { CepProvider } from './src/contexts/CepContext';
 import { AuthProvider } from './src/contexts/AuthContext';
+import { AvisosProvider } from './src/contexts/AvisosContext';
+
 import { useAuth } from './src/hooks/useAuth';
-import { ToastProvider } from './src/components/Toast'; // ✅ NOVO
+
+import { ToastProvider } from './src/components/Toast';
+import { AvisosNotificationModal } from './src/components/AvisosNotificationModal';
+import { DrawerBadge } from './src/components/DrawerBadge';
+
 import Login from './src/screens/Login';
 import Registro from './src/screens/Registro';
 import Perfil from './src/screens/Perfil';
 import Cadastros from './src/screens/Cadastros';
 import Boletim from './src/screens/Boletim';
+import Avisos from './src/screens/Avisos';
+import DetalheAviso from './src/screens/DetalheAviso';
+import NovoAviso from './src/screens/NovoAviso';
 import LogoutButton from './src/screens/LogoutButton';
+
 import { withGuard } from './src/screens/withGuard';
+
 import type { AppDrawerParamList, AuthStackParamList } from './src/types';
 
 const Drawer = createDrawerNavigator<AppDrawerParamList>();
 const Stack = createNativeStackNavigator<AuthStackParamList>();
+const AvisosStack = createNativeStackNavigator();
+
+function AvisosNavigator() {
+  return (
+    <AvisosStack.Navigator screenOptions={{ headerShown: false }}>
+      <AvisosStack.Screen name="ListaAvisos" component={Avisos} />
+      <AvisosStack.Screen name="DetalheAviso" component={DetalheAviso} />
+      <AvisosStack.Screen name="NovoAviso" component={NovoAviso} />
+      <AvisosStack.Screen name="EditarAviso" component={NovoAviso} />
+    </AvisosStack.Navigator>
+  );
+}
 
 function AppDrawer() {
   const GuardCadastros = withGuard('Cadastros', Cadastros);
-  const GuardBoletim   = withGuard('Boletim', Boletim);
-  
+  const GuardBoletim = withGuard('Boletim', Boletim);
+
   return (
-    <Drawer.Navigator
-      initialRouteName="Perfil"
-      screenOptions={({ route }) => ({
-        headerLeft: () => <DrawerToggleButton />,
-        headerRight: () => <LogoutButton />,
-        drawerIcon: ({ color, size }) => {
-          const iconMap: Record<string, any> = {
-            Perfil: 'person-circle-outline',
-            Cadastros: 'create-outline',
-            Boletim: 'document-text-outline',
-          };
-          const name = iconMap[route.name] ?? 'ellipse';
-          return <Ionicons name={name as any} size={size} color={color} />;
-        },
-      })}
-    >
-      <Drawer.Screen
-        name="Perfil"
-        component={Perfil}
-        options={{ title: 'Meu Perfil' }}
-      />
-      <Drawer.Screen
-        name="Cadastros"
-        component={GuardCadastros}
-        options={{ title: 'Cadastros' }}
-      />
-      <Drawer.Screen
-        name="Boletim"
-        component={GuardBoletim}
-        options={{ title: 'Boletim' }}
-      />
-    </Drawer.Navigator>
+    <>
+      <Drawer.Navigator
+        initialRouteName="Perfil"
+        screenOptions={({ route }) => ({
+          headerLeft: () => <DrawerToggleButton />,
+          headerRight: () => <LogoutButton />,
+
+          drawerIcon: ({ color, size }) => {
+            const iconMap: Record<string, any> = {
+              Perfil: 'person-circle-outline',
+              Cadastros: 'create-outline',
+              Boletim: 'document-text-outline',
+              Avisos: 'notifications-outline',
+            };
+
+            return (
+              <Ionicons
+                name={(iconMap[route.name] ?? 'ellipse') as any}
+                size={size}
+                color={color}
+              />
+            );
+          },
+
+          // CORRIGIDO ✔️
+          drawerLabel: ({ color }) => {
+            if (route.name === 'Avisos') {
+              return (
+                <View style={{ flexDirection: 'row', alignItems: 'center' }}>
+                  <Text style={{ color, marginLeft: -16 }}>Avisos</Text>
+                  <DrawerBadge />
+                </View>
+              );
+            }
+
+            return <Text style={{ color }}>{route.name}</Text>;
+          },
+        })}
+      >
+        <Drawer.Screen
+          name="Perfil"
+          component={Perfil}
+          options={{ title: 'Meu Perfil' }}
+        />
+
+        <Drawer.Screen
+          name="Cadastros"
+          component={GuardCadastros}
+          options={{ title: 'Cadastros' }}
+        />
+
+        <Drawer.Screen
+          name="Boletim"
+          component={GuardBoletim}
+          options={{ title: 'Boletim' }}
+        />
+
+        <Drawer.Screen
+          name="Avisos"
+          component={AvisosNavigator}
+          options={{ title: 'Avisos', headerShown: false }}
+        />
+      </Drawer.Navigator>
+
+      {/* MODAL DE NOTIFICAÇÃO */}
+      <AvisosNotificationModal />
+    </>
   );
 }
 
 function AuthStack() {
   return (
-    <Stack.Navigator
-      initialRouteName="Login"
-      screenOptions={{ headerShown: false }}
-    >
+    <Stack.Navigator initialRouteName="Login" screenOptions={{ headerShown: false }}>
       <Stack.Screen name="Login" component={Login} />
       <Stack.Screen name="Registro" component={Registro} />
     </Stack.Navigator>
@@ -76,7 +132,7 @@ function AuthStack() {
 
 function RootNavigator() {
   const { token, carregando } = useAuth();
-  
+
   if (carregando) {
     return (
       <View
@@ -91,21 +147,22 @@ function RootNavigator() {
       </View>
     );
   }
-  
+
   return token ? <AppDrawer /> : <AuthStack />;
 }
 
 export default function App() {
   return (
     <GestureHandlerRootView style={{ flex: 1 }}>
-      {/* ✅ NOVO: ToastProvider envolve tudo */}
       <ToastProvider>
         <AuthProvider>
-          <CepProvider>
-            <NavigationContainer>
-              <RootNavigator />
-            </NavigationContainer>
-          </CepProvider>
+          <AvisosProvider>
+            <CepProvider>
+              <NavigationContainer>
+                <RootNavigator />
+              </NavigationContainer>
+            </CepProvider>
+          </AvisosProvider>
         </AuthProvider>
       </ToastProvider>
     </GestureHandlerRootView>

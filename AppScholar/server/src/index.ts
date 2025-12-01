@@ -493,3 +493,394 @@ app.get('/boletim', authMiddleware, async (req: any, res) => {
 
   res.json(resp);
 });
+
+// ===================== AVISOS ACADÊMICOS =====================
+
+// -------- Listar Avisos --------
+app.get('/avisos', authMiddleware, async (req: any, res) => {
+  const userId = req.user?.sub as string;
+  const { tipo, naoLidos } = req.query;
+
+  try {
+    // Construir filtros
+    const where: any = {};
+    
+    if (tipo && ['institucional', 'lembrete', 'comunicado'].includes(tipo as string)) {
+      where.tipo = tipo;
+    }
+
+    // Buscar avisos
+    const avisos = await prisma.aviso.findMany({
+      where,
+      include: {
+        autor: {
+          select: {
+            id: true,
+            name: true,
+            email: true,
+            role: true,
+          },
+        },
+        leituras: {
+          where: { userId },
+          select: { lidoEm: true },
+        },
+      },
+      orderBy: [
+        { publicadoEm: 'desc' },
+      ],
+    });
+
+    // Mapear avisos com status de leitura
+    const avisosComLeitura = avisos.map(aviso => ({
+      id: aviso.id,
+      titulo: aviso.titulo,
+      conteudo: aviso.conteudo,
+      tipo: aviso.tipo,
+      prioridade: aviso.prioridade,
+      publicadoEm: aviso.publicadoEm,
+      autor: {
+        id: aviso.autor.id,
+        nome: aviso.autor.name,
+        email: aviso.autor.email,
+        perfil: aviso.autor.role.toLowerCase(),
+      },
+      lido: aviso.leituras.length > 0,
+      lidoEm: aviso.leituras[0]?.lidoEm ?? null,
+    }));
+
+    // Filtrar não lidos se solicitado
+    if (naoLidos === 'true') {
+      const naoLidosFiltrados = avisosComLeitura.filter(a => !a.lido);
+      return res.json(naoLidosFiltrados);
+    }
+
+    res.json(avisosComLeitura);
+  } catch (e: any) {
+    return res.status(500).json({ 
+      message: 'Erro ao buscar avisos', 
+      error: e?.message 
+    });
+  }
+});
+
+// -------- Buscar Aviso por ID --------
+app.get('/avisos/:id', authMiddleware, async (req: any, res) => {
+  const { id } = req.params;
+  const userId = req.user?.sub as string;
+
+  try {
+    const aviso = await prisma.aviso.findUnique({
+      where: { id },
+      include: {
+        autor: {
+          select: {
+            id: true,
+            name: true,
+            email: true,
+            role: true,
+          },
+        },
+        leituras: {
+          where: { userId },
+          select: { lidoEm: true },
+        },
+      },
+    });
+
+    if (!aviso) {
+      return res.status(404).json({ message: 'Aviso não encontrado' });
+    }
+
+    return res.json({
+      id: aviso.id,
+      titulo: aviso.titulo,
+      conteudo: aviso.conteudo,
+      tipo: aviso.tipo,
+      prioridade: aviso.prioridade,
+      publicadoEm: aviso.publicadoEm,
+      autor: {
+        id: aviso.autor.id,
+        nome: aviso.autor.name,
+        email: aviso.autor.email,
+        perfil: aviso.autor.role.toLowerCase(),
+      },
+      lido: aviso.leituras.length > 0,
+      lidoEm: aviso.leituras[0]?.lidoEm ?? null,
+    });
+  } catch (e: any) {
+    return res.status(500).json({ 
+      message: 'Erro ao buscar aviso', 
+      error: e?.message 
+    });
+  }
+});
+
+// -------- Criar Aviso (ADMIN e MANAGER apenas) --------
+app.post('/avisos', authMiddleware, async (req: any, res) => {
+  const autorId = req.user?.sub as string;
+  const userRole = req.user?.role as string;
+  const { titulo, conteudo, tipo, prioridade } = req.body ?? {};
+
+  // ✅ Apenas ADMIN e MANAGER podem criar avisos
+  if (!['ADMIN', 'MANAGER'].includes(userRole)) {
+    return res.status(403).json({ 
+      message: 'Apenas administradores e professores podem criar avisos' 
+    });
+  }
+
+  // ✅ Validações
+  if (!titulo || titulo.trim().length < 5) {
+    return res.status(400).json({ 
+      message: 'Título deve ter no mínimo 5 caracteres' 
+    });
+  }
+
+  if (!conteudo || conteudo.trim().length < 10) {
+    return res.status(400).json({ 
+      message: 'Conteúdo deve ter no mínimo 10 caracteres' 
+    });
+  }
+
+  if (!['institucional', 'lembrete', 'comunicado'].includes(tipo)) {
+    return res.status(400).json({ 
+      message: 'Tipo deve ser: institucional, lembrete ou comunicado' 
+    });
+  }
+
+  const prioridadeValida = prioridade ?? 'normal';
+  if (!['baixa', 'normal', 'alta', 'urgente'].includes(prioridadeValida)) {
+    return res.status(400).json({ 
+      message: 'Prioridade deve ser: baixa, normal, alta ou urgente' 
+    });
+  }
+
+  try {
+    const novoAviso = await prisma.aviso.create({
+      data: {
+        titulo: titulo.trim(),
+        conteudo: conteudo.trim(),
+        tipo,
+        prioridade: prioridadeValida,
+        autorId,
+      },
+      include: {
+        autor: {
+          select: {
+            id: true,
+            name: true,
+            email: true,
+            role: true,
+          },
+        },
+      },
+    });
+
+    return res.status(201).json({
+      id: novoAviso.id,
+      titulo: novoAviso.titulo,
+      conteudo: novoAviso.conteudo,
+      tipo: novoAviso.tipo,
+      prioridade: novoAviso.prioridade,
+      publicadoEm: novoAviso.publicadoEm,
+      autor: {
+        id: novoAviso.autor.id,
+        nome: novoAviso.autor.name,
+        email: novoAviso.autor.email,
+        perfil: novoAviso.autor.role.toLowerCase(),
+      },
+    });
+  } catch (e: any) {
+    return res.status(500).json({ 
+      message: 'Erro ao criar aviso', 
+      error: e?.message 
+    });
+  }
+});
+
+// -------- Atualizar Aviso (apenas autor ou ADMIN) --------
+app.put('/avisos/:id', authMiddleware, async (req: any, res) => {
+  const { id } = req.params;
+  const userId = req.user?.sub as string;
+  const userRole = req.user?.role as string;
+  const { titulo, conteudo, tipo, prioridade } = req.body ?? {};
+
+  try {
+    // Verificar se aviso existe
+    const avisoExistente = await prisma.aviso.findUnique({ where: { id } });
+    
+    if (!avisoExistente) {
+      return res.status(404).json({ message: 'Aviso não encontrado' });
+    }
+
+    // ✅ Apenas o autor ou ADMIN podem editar
+    if (avisoExistente.autorId !== userId && userRole !== 'ADMIN') {
+      return res.status(403).json({ 
+        message: 'Você não tem permissão para editar este aviso' 
+      });
+    }
+
+    // ✅ Validações
+    if (titulo && titulo.trim().length < 5) {
+      return res.status(400).json({ 
+        message: 'Título deve ter no mínimo 5 caracteres' 
+      });
+    }
+
+    if (conteudo && conteudo.trim().length < 10) {
+      return res.status(400).json({ 
+        message: 'Conteúdo deve ter no mínimo 10 caracteres' 
+      });
+    }
+
+    if (tipo && !['institucional', 'lembrete', 'comunicado'].includes(tipo)) {
+      return res.status(400).json({ 
+        message: 'Tipo deve ser: institucional, lembrete ou comunicado' 
+      });
+    }
+
+    if (prioridade && !['baixa', 'normal', 'alta', 'urgente'].includes(prioridade)) {
+      return res.status(400).json({ 
+        message: 'Prioridade deve ser: baixa, normal, alta ou urgente' 
+      });
+    }
+
+    // Atualizar
+    const avisoAtualizado = await prisma.aviso.update({
+      where: { id },
+      data: {
+        ...(titulo && { titulo: titulo.trim() }),
+        ...(conteudo && { conteudo: conteudo.trim() }),
+        ...(tipo && { tipo }),
+        ...(prioridade && { prioridade }),
+      },
+      include: {
+        autor: {
+          select: {
+            id: true,
+            name: true,
+            email: true,
+            role: true,
+          },
+        },
+      },
+    });
+
+    return res.json({
+      id: avisoAtualizado.id,
+      titulo: avisoAtualizado.titulo,
+      conteudo: avisoAtualizado.conteudo,
+      tipo: avisoAtualizado.tipo,
+      prioridade: avisoAtualizado.prioridade,
+      publicadoEm: avisoAtualizado.publicadoEm,
+      autor: {
+        id: avisoAtualizado.autor.id,
+        nome: avisoAtualizado.autor.name,
+        email: avisoAtualizado.autor.email,
+        perfil: avisoAtualizado.autor.role.toLowerCase(),
+      },
+    });
+  } catch (e: any) {
+    return res.status(500).json({ 
+      message: 'Erro ao atualizar aviso', 
+      error: e?.message 
+    });
+  }
+});
+
+// -------- Deletar Aviso (apenas autor ou ADMIN) --------
+app.delete('/avisos/:id', authMiddleware, async (req: any, res) => {
+  const { id } = req.params;
+  const userId = req.user?.sub as string;
+  const userRole = req.user?.role as string;
+
+  try {
+    const aviso = await prisma.aviso.findUnique({ where: { id } });
+    
+    if (!aviso) {
+      return res.status(404).json({ message: 'Aviso não encontrado' });
+    }
+
+    // ✅ Apenas o autor ou ADMIN podem deletar
+    if (aviso.autorId !== userId && userRole !== 'ADMIN') {
+      return res.status(403).json({ 
+        message: 'Você não tem permissão para deletar este aviso' 
+      });
+    }
+
+    await prisma.aviso.delete({ where: { id } });
+    return res.status(204).send();
+  } catch (e: any) {
+    return res.status(500).json({ 
+      message: 'Erro ao deletar aviso', 
+      error: e?.message 
+    });
+  }
+});
+
+// -------- Marcar Aviso como Lido --------
+app.post('/avisos/:id/marcar-lido', authMiddleware, async (req: any, res) => {
+  const { id } = req.params;
+  const userId = req.user?.sub as string;
+
+  try {
+    // Verificar se aviso existe
+    const aviso = await prisma.aviso.findUnique({ where: { id } });
+    
+    if (!aviso) {
+      return res.status(404).json({ message: 'Aviso não encontrado' });
+    }
+
+    // Criar ou atualizar leitura
+    await prisma.avisoLeitura.upsert({
+      where: {
+        avisoId_userId: {
+          avisoId: id,
+          userId,
+        },
+      },
+      create: {
+        avisoId: id,
+        userId,
+      },
+      update: {
+        lidoEm: new Date(),
+      },
+    });
+
+    return res.json({ message: 'Aviso marcado como lido' });
+  } catch (e: any) {
+    return res.status(500).json({ 
+      message: 'Erro ao marcar aviso como lido', 
+      error: e?.message 
+    });
+  }
+});
+
+// -------- Contar Avisos Não Lidos --------
+app.get('/avisos/nao-lidos/count', authMiddleware, async (req: any, res) => {
+  const userId = req.user?.sub as string;
+
+  try {
+    // Buscar todos os avisos
+    const todosAvisos = await prisma.aviso.findMany({
+      select: { id: true },
+    });
+
+    // Buscar avisos lidos pelo usuário
+    const avisosLidos = await prisma.avisoLeitura.findMany({
+      where: { userId },
+      select: { avisoId: true },
+    });
+
+    const idsLidos = new Set(avisosLidos.map(l => l.avisoId));
+    const naoLidos = todosAvisos.filter(a => !idsLidos.has(a.id));
+
+    return res.json({ count: naoLidos.length });
+  } catch (e: any) {
+    return res.status(500).json({ 
+      message: 'Erro ao contar avisos não lidos', 
+      error: e?.message 
+    });
+  }
+});

@@ -1,5 +1,4 @@
-// schema.prisma atualizado
-// Adicione o relacionamento User -> Aluno
+// schema.prisma atualizado com modelo de Avisos
 
 generator client {
   provider = "prisma-client-js"
@@ -19,8 +18,8 @@ model User {
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
 
-  // ✅ NOVO: Relacionamento com Aluno
   aluno     Aluno?   @relation("UserAluno")
+  avisos    Aviso[]  @relation("AvisoAutor") // ✅ Avisos criados pelo usuário
 
   @@map("User")
 }
@@ -34,7 +33,6 @@ model Aluno {
   createdAt  DateTime @default(now())
   updatedAt  DateTime @updatedAt
 
-  // ✅ NOVO: Relacionamento com User (opcional)
   userId     String?  @unique
   user       User?    @relation("UserAluno", fields: [userId], references: [id], onDelete: SetNull)
 
@@ -47,7 +45,7 @@ model Aluno {
 model Curso {
   id          String       @id @default(uuid())
   nome        String
-  turno       String       // matutino, vespertino, noturno
+  turno       String
   createdAt   DateTime     @default(now())
   updatedAt   DateTime     @updatedAt
   disciplinas Disciplina[]
@@ -88,7 +86,7 @@ model Disciplina {
 model Nota {
   id           String     @id @default(uuid())
   disciplinaId String
-  alunoId      String?    // se null = nota global (sem aluno específico)
+  alunoId      String?
   n1           Float      @default(0)
   n2           Float      @default(0)
   createdAt    DateTime   @default(now())
@@ -100,4 +98,43 @@ model Nota {
   @@unique([disciplinaId, alunoId])
   @@index([alunoId])
   @@map("Nota")
+}
+
+// ✅ NOVO: Modelo de Avisos Acadêmicos
+model Aviso {
+  id          String   @id @default(uuid())
+  titulo      String
+  conteudo    String   @db.Text
+  tipo        String   // "institucional", "lembrete", "comunicado"
+  prioridade  String   @default("normal") // "baixa", "normal", "alta", "urgente"
+  publicadoEm DateTime @default(now())
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+  
+  // Relacionamento com o autor (User)
+  autorId     String
+  autor       User     @relation("AvisoAutor", fields: [autorId], references: [id], onDelete: Cascade)
+
+  // Leituras dos avisos
+  leituras    AvisoLeitura[]
+
+  @@index([autorId])
+  @@index([publicadoEm])
+  @@index([tipo])
+  @@map("Aviso")
+}
+
+// ✅ NOVO: Registro de leitura de avisos por usuário
+model AvisoLeitura {
+  id        String   @id @default(uuid())
+  avisoId   String
+  userId    String
+  lidoEm    DateTime @default(now())
+  
+  aviso     Aviso    @relation(fields: [avisoId], references: [id], onDelete: Cascade)
+
+  @@unique([avisoId, userId])
+  @@index([userId])
+  @@index([avisoId])
+  @@map("AvisoLeitura")
 }
