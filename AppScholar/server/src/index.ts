@@ -27,6 +27,12 @@ function resolveRole(email: string): string {
   return 'USER';
 }
 
+// ✅ NOVA FUNÇÃO: Valida email
+function isValidEmail(email: string): boolean {
+  const regex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
+  return regex.test(email);
+}
+
 // Helpers
 function signToken(user: { id: string; email: string; role: string; name: string }) {
   return jwt.sign(
@@ -63,15 +69,17 @@ function authMiddleware(req: any, res: any, next: any) {
 app.post('/auth/register', async (req, res) => {
   const { email, password, name, role } = req.body ?? {};
 
-  // agora só obrigamos email e password
-  if (!email || !password) {
-    return res.status(400).json({ message: 'email e password são obrigatórios' });
+  // ✅ Validação de email
+  if (!email || !isValidEmail(email)) {
+    return res.status(400).json({ message: 'E-mail inválido' });
   }
 
-  // se não vier name, usa a parte antes do @ como nome
-  const finalName = name ?? String(email).split('@')[0];
+  // ✅ Validação de senha
+  if (!password || password.length < 4) {
+    return res.status(400).json({ message: 'Senha deve ter no mínimo 4 caracteres' });
+  }
 
-  // ✅ CORREÇÃO: Se não vier role do body, resolve pelo email
+  const finalName = name ?? String(email).split('@')[0];
   const finalRole = role ?? resolveRole(email);
 
   try {
@@ -85,7 +93,7 @@ app.post('/auth/register', async (req, res) => {
         email,
         name: finalName,
         password: await hashPassword(password),
-        role: finalRole, // ✅ Agora usa a lógica do email!
+        role: finalRole,
       },
     });
 
@@ -102,7 +110,7 @@ app.post('/auth/register', async (req, res) => {
         id: user.id,
         nome: user.name,
         email: user.email,
-        perfil: user.role.toLowerCase(), // 'admin', 'manager' ou 'user'
+        perfil: user.role.toLowerCase(),
       },
     });
   } catch (e: any) {
@@ -112,10 +120,13 @@ app.post('/auth/register', async (req, res) => {
   }
 });
 
-
 app.post('/auth/login', async (req, res) => {
   const { email, password } = req.body ?? {};
-  if (!email || !password) return res.status(400).json({ message: 'email e password são obrigatórios' });
+  
+  if (!email || !password) {
+    return res.status(400).json({ message: 'E-mail e senha são obrigatórios' });
+  }
+
   try {
     const user = await prisma.user.findUnique({ where: { email } });
     if (!user) return res.status(401).json({ message: 'Credenciais inválidas' });
@@ -124,9 +135,15 @@ app.post('/auth/login', async (req, res) => {
     if (!ok) return res.status(401).json({ message: 'Credenciais inválidas' });
 
     const token = signToken({ id: user.id, email: user.email, role: user.role, name: user.name });
+    
     return res.json({
       token,
-      user: { id: user.id, nome: user.name, email: user.email, perfil: user.role.toLowerCase() }
+      user: { 
+        id: user.id, 
+        nome: user.name, 
+        email: user.email, 
+        perfil: user.role.toLowerCase() 
+      }
     });
   } catch (e: any) {
     return res.status(500).json({ message: 'Erro ao autenticar', error: e?.message });
@@ -135,31 +152,112 @@ app.post('/auth/login', async (req, res) => {
 
 app.get('/auth/me', authMiddleware, async (req: any, res) => {
   const id = req.user?.sub as string;
-  const user = await prisma.user.findUnique({ where: { id } });
+  const user = await prisma.user.findUnique({ 
+    where: { id },
+    include: { aluno: true } // ✅ Incluir aluno vinculado
+  });
+  
   if (!user) return res.status(404).json({ message: 'Usuário não encontrado' });
-  return res.json({ id: user.id, nome: user.name, email: user.email, perfil: user.role.toLowerCase() });
+  
+  return res.json({ 
+    id: user.id, 
+    nome: user.name, 
+    email: user.email, 
+    perfil: user.role.toLowerCase(),
+    alunoId: user.aluno?.id ?? null // ✅ Retornar ID do aluno se existir
+  });
+});
+
+// ✅ NOVO ENDPOINT: Vincular User a Aluno existente
+app.post('/auth/vincular-aluno', authMiddleware, async (req: any, res) => {
+  const userId = req.user?.sub as string;
+  const { alunoId } = req.body ?? {};
+
+  if (!alunoId) {
+    return res.status(400).json({ message: 'alunoId é obrigatório' });
+  }
+
+  try {
+    // Verificar se aluno existe
+    const aluno = await prisma.aluno.findUnique({ where: { id: alunoId } });
+    if (!aluno) {
+      return res.status(404).json({ message: 'Aluno não encontrado' });
+    }
+
+    // Verificar se aluno já está vinculado
+    if (aluno.userId) {
+      return res.status(409).json({ message: 'Este aluno já está vinculado a outro usuário' });
+    }
+
+    // Vincular
+    await prisma.aluno.update({
+      where: { id: alunoId },
+      data: { userId },
+    });
+
+    return res.json({ message: 'Aluno vinculado com sucesso' });
+  } catch (e: any) {
+    return res.status(500).json({ message: 'Erro ao vincular aluno', error: e?.message });
+  }
 });
 
 app.listen(PORT, () => {
   console.log(`API running on http://localhost:${PORT}`);
 });
 
-
 // ===================== ENTREGAS 2 e 3 =====================
 
 // -------- Alunos --------
-app.get('/alunos', authMiddleware, async (_req, res) => {
+app.get('/alunos', authMiddleware, async (req: any, res) => {
+  const userId = req.user?.sub as string;
+  const userRole = req.user?.role as string;
+
+  // ✅ Se for USER, retorna apenas seu próprio aluno
+  if (userRole === 'USER') {
+    const alunos = await prisma.aluno.findMany({
+      where: { userId },
+      orderBy: { createdAt: 'asc' },
+    });
+    return res.json(alunos);
+  }
+
+  // ADMIN e MANAGER veem todos
   const alunos = await prisma.aluno.findMany({ orderBy: { createdAt: 'asc' } });
   res.json(alunos);
 });
 
 app.post('/alunos', authMiddleware, async (req, res) => {
   const { nome, email, matricula, curso } = req.body ?? {};
-  if (!nome || !email || !matricula || !curso) {
-    return res.status(400).json({ message: 'nome, email, matricula, curso são obrigatórios' });
+  
+  // ✅ Validações aprimoradas
+  if (!nome || nome.trim().length < 3) {
+    return res.status(400).json({ message: 'Nome deve ter pelo menos 3 caracteres' });
   }
-  const novo = await prisma.aluno.create({ data: { nome, email, matricula, curso } });
-  res.json(novo);
+  
+  if (!email || !isValidEmail(email)) {
+    return res.status(400).json({ message: 'E-mail inválido' });
+  }
+  
+  if (!matricula || matricula.trim().length < 3) {
+    return res.status(400).json({ message: 'Matrícula inválida' });
+  }
+  
+  if (!curso || curso.trim().length < 3) {
+    return res.status(400).json({ message: 'Curso inválido' });
+  }
+
+  try {
+    // Verificar se matrícula já existe
+    const exists = await prisma.aluno.findUnique({ where: { matricula } });
+    if (exists) {
+      return res.status(409).json({ message: 'Matrícula já cadastrada' });
+    }
+
+    const novo = await prisma.aluno.create({ data: { nome, email, matricula, curso } });
+    res.json(novo);
+  } catch (e: any) {
+    return res.status(500).json({ message: 'Erro ao criar aluno', error: e?.message });
+  }
 });
 
 app.delete('/alunos/:id', authMiddleware, async (req, res) => {
@@ -176,7 +274,15 @@ app.get('/cursos', authMiddleware, async (_req, res) => {
 
 app.post('/cursos', authMiddleware, async (req, res) => {
   const { nome, turno } = req.body ?? {};
-  if (!nome || !turno) return res.status(400).json({ message: 'nome e turno são obrigatórios' });
+  
+  if (!nome || nome.trim().length < 3) {
+    return res.status(400).json({ message: 'Nome do curso inválido' });
+  }
+  
+  if (!['matutino', 'vespertino', 'noturno'].includes(turno)) {
+    return res.status(400).json({ message: 'Turno deve ser: matutino, vespertino ou noturno' });
+  }
+
   const novo = await prisma.curso.create({ data: { nome, turno } });
   res.json(novo);
 });
@@ -195,8 +301,19 @@ app.get('/professores', authMiddleware, async (_req, res) => {
 
 app.post('/professores', authMiddleware, async (req, res) => {
   const { nome, titulacao, tempoDocencia } = req.body ?? {};
-  if (!nome || !titulacao || !tempoDocencia)
-    return res.status(400).json({ message: 'nome, titulacao, tempoDocencia são obrigatórios' });
+  
+  if (!nome || nome.trim().length < 3) {
+    return res.status(400).json({ message: 'Nome inválido' });
+  }
+  
+  if (!titulacao || titulacao.trim().length < 3) {
+    return res.status(400).json({ message: 'Titulação inválida' });
+  }
+  
+  if (!tempoDocencia || tempoDocencia.trim().length < 1) {
+    return res.status(400).json({ message: 'Tempo de docência inválido' });
+  }
+
   const novo = await prisma.professor.create({ data: { nome, titulacao, tempoDocencia } });
   res.json(novo);
 });
@@ -215,8 +332,15 @@ app.get('/disciplinas', authMiddleware, async (_req, res) => {
 
 app.post('/disciplinas', authMiddleware, async (req, res) => {
   const { nome, cargaHoraria, cursoId, professorId } = req.body ?? {};
-  if (!nome || !Number.isFinite(cargaHoraria) || Number(cargaHoraria) <= 0)
-    return res.status(400).json({ message: 'nome e cargaHoraria (>0) são obrigatórios' });
+  
+  if (!nome || nome.trim().length < 3) {
+    return res.status(400).json({ message: 'Nome da disciplina inválido' });
+  }
+  
+  if (!Number.isFinite(cargaHoraria) || Number(cargaHoraria) <= 0 || Number(cargaHoraria) > 999) {
+    return res.status(400).json({ message: 'Carga horária deve estar entre 1 e 999' });
+  }
+
   const novo = await prisma.disciplina.create({
     data: {
       nome,
@@ -235,18 +359,47 @@ app.delete('/disciplinas/:id', authMiddleware, async (req, res) => {
 });
 
 // -------- Notas (Entrega 3) --------
-// GET /notas?alunoId=...
-app.get('/notas', authMiddleware, async (req, res) => {
-  const alunoId = (req.query.alunoId as string) || null;
-  const where = alunoId ? { alunoId } : { alunoId: null };
+app.get('/notas', authMiddleware, async (req: any, res) => {
+  const userId = req.user?.sub as string;
+  const userRole = req.user?.role as string;
+  const alunoIdQuery = (req.query.alunoId as string) || null;
+
+  // ✅ Se for USER, busca seu próprio aluno
+  if (userRole === 'USER') {
+    const aluno = await prisma.aluno.findFirst({ where: { userId } });
+    if (!aluno) {
+      return res.json([]); // Sem aluno vinculado
+    }
+
+    const notas = await prisma.nota.findMany({
+      where: { alunoId: aluno.id },
+      orderBy: { createdAt: 'asc' },
+    });
+    return res.json(notas);
+  }
+
+  // ADMIN e MANAGER
+  const where = alunoIdQuery ? { alunoId: alunoIdQuery } : { alunoId: null };
   const notas = await prisma.nota.findMany({ where, orderBy: { createdAt: 'asc' } });
   res.json(notas);
 });
 
-// POST /notas/batch  { alunoId?: string, notas: {disciplinaId,n1,n2}[] }
 app.post('/notas/batch', authMiddleware, async (req, res) => {
   const { alunoId, notas } = req.body ?? {};
-  if (!Array.isArray(notas)) return res.status(400).json({ message: 'notas deve ser array' });
+  
+  if (!Array.isArray(notas)) {
+    return res.status(400).json({ message: 'notas deve ser array' });
+  }
+
+  // ✅ Validar notas (0-10)
+  for (const nota of notas) {
+    const n1 = Number(nota.n1) || 0;
+    const n2 = Number(nota.n2) || 0;
+    
+    if (n1 < 0 || n1 > 10 || n2 < 0 || n2 > 10) {
+      return res.status(400).json({ message: 'Notas devem estar entre 0 e 10' });
+    }
+  }
 
   await prisma.$transaction(async (tx) => {
     for (const raw of notas) {
@@ -255,7 +408,6 @@ app.post('/notas/batch', authMiddleware, async (req, res) => {
       const n2 = Number(raw.n2) || 0;
 
       if (alunoId) {
-        // caso COM alunoId → upsert normal funciona
         await tx.nota.upsert({
           where: {
             disciplinaId_alunoId: {
@@ -267,7 +419,6 @@ app.post('/notas/batch', authMiddleware, async (req, res) => {
           update: { n1, n2 },
         });
       } else {
-        // caso SEM alunoId (global) → não dá pra usar upsert com null
         const existing = await tx.nota.findFirst({
           where: { disciplinaId, alunoId: null },
           select: { id: true },
@@ -291,13 +442,24 @@ app.post('/notas/batch', authMiddleware, async (req, res) => {
 });
 
 // -------- Boletim (Entrega 3) --------
-// GET /boletim?alunoId=...
-app.get('/boletim', authMiddleware, async (req, res) => {
-  const alunoId = (req.query.alunoId as string) || null;
+app.get('/boletim', authMiddleware, async (req: any, res) => {
+  const userId = req.user?.sub as string;
+  const userRole = req.user?.role as string;
+  const alunoIdQuery = (req.query.alunoId as string) || null;
+
+  let alunoId = alunoIdQuery;
+
+  // ✅ Se for USER, busca automaticamente seu aluno
+  if (userRole === 'USER') {
+    const aluno = await prisma.aluno.findFirst({ where: { userId } });
+    if (!aluno) {
+      return res.json([]); // Sem aluno vinculado
+    }
+    alunoId = aluno.id;
+  }
 
   const disciplinas = await prisma.disciplina.findMany({ orderBy: { createdAt: 'asc' } });
 
-  // pega notas compatíveis (por aluno ou globais)
   const notas = await prisma.nota.findMany({
     where: alunoId ? { alunoId } : { alunoId: null },
   });
@@ -308,6 +470,7 @@ app.get('/boletim', authMiddleware, async (req, res) => {
     const m = Math.round((( (isFinite(n1) ? n1 : 0) + (isFinite(n2) ? n2 : 0) ) / 2) * 10) / 10;
     return m;
   }
+  
   function status(m: number) {
     if (m >= 6) return 'aprovado';
     if (m >= 4) return 'exame';

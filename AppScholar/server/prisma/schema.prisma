@@ -1,3 +1,6 @@
+// schema.prisma atualizado
+// Adicione o relacionamento User -> Aluno
+
 generator client {
   provider = "prisma-client-js"
 }
@@ -7,88 +10,94 @@ datasource db {
   url      = env("DATABASE_URL")
 }
 
-/** JÁ EXISTENTE **/
 model User {
-  id        String   @id @default(cuid())
-  name      String
+  id        String   @id @default(uuid())
   email     String   @unique
+  name      String
   password  String
-  role      Role     @default(USER)
+  role      String   @default("USER") // ADMIN, MANAGER, USER
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
+
+  // ✅ NOVO: Relacionamento com Aluno
+  aluno     Aluno?   @relation("UserAluno")
+
+  @@map("User")
 }
 
-/** NOVO: Entrega 2 **/
 model Aluno {
-  id        String   @id @default(cuid())
-  nome      String
-  email     String
-  matricula String
-  curso     String        // você usa um texto simples na tela
-  createdAt DateTime @default(now())
-  updatedAt DateTime @updatedAt
+  id         String   @id @default(uuid())
+  nome       String
+  email      String
+  matricula  String   @unique
+  curso      String
+  createdAt  DateTime @default(now())
+  updatedAt  DateTime @updatedAt
 
-  notas Nota[]
+  // ✅ NOVO: Relacionamento com User (opcional)
+  userId     String?  @unique
+  user       User?    @relation("UserAluno", fields: [userId], references: [id], onDelete: SetNull)
+
+  notas      Nota[]
+
+  @@index([userId])
+  @@map("Aluno")
 }
 
 model Curso {
-  id        String   @id @default(cuid())
-  nome      String
-  turno     String   // 'matutino' | 'vespertino' | 'noturno'
-  createdAt DateTime @default(now())
-  updatedAt DateTime @updatedAt
-
+  id          String       @id @default(uuid())
+  nome        String
+  turno       String       // matutino, vespertino, noturno
+  createdAt   DateTime     @default(now())
+  updatedAt   DateTime     @updatedAt
   disciplinas Disciplina[]
+
+  @@map("Curso")
 }
 
 model Professor {
-  id            String   @id @default(cuid())
+  id            String       @id @default(uuid())
   nome          String
   titulacao     String
   tempoDocencia String
-  createdAt     DateTime @default(now())
-  updatedAt     DateTime @updatedAt
+  createdAt     DateTime     @default(now())
+  updatedAt     DateTime     @updatedAt
+  disciplinas   Disciplina[]
 
-  disciplinas Disciplina[]
+  @@map("Professor")
 }
 
 model Disciplina {
-  id           String    @id @default(cuid())
+  id           String     @id @default(uuid())
   nome         String
   cargaHoraria Int
-  createdAt    DateTime  @default(now())
-  updatedAt    DateTime  @updatedAt
+  cursoId      String?
+  professorId  String?
+  createdAt    DateTime   @default(now())
+  updatedAt    DateTime   @updatedAt
+  
+  curso        Curso?     @relation(fields: [cursoId], references: [id], onDelete: SetNull)
+  professor    Professor? @relation(fields: [professorId], references: [id], onDelete: SetNull)
+  notas        Nota[]
 
-  // relacionais opcionais (a UI manda IDs opcionais)
-  cursoId     String?
-  professorId String?
-  curso       Curso?     @relation(fields: [cursoId], references: [id])
-  professor   Professor? @relation(fields: [professorId], references: [id])
-
-  notas Nota[]
+  @@index([cursoId])
+  @@index([professorId])
+  @@map("Disciplina")
 }
 
-/** Usado na Entrega 3 (boletim/notas) **/
 model Nota {
-  id           String     @id @default(cuid())
+  id           String     @id @default(uuid())
+  disciplinaId String
+  alunoId      String?    // se null = nota global (sem aluno específico)
   n1           Float      @default(0)
   n2           Float      @default(0)
   createdAt    DateTime   @default(now())
   updatedAt    DateTime   @updatedAt
 
-  // Chaves para identificar a nota
-  disciplinaId String
-  alunoId      String?
-  disciplina   Disciplina @relation(fields: [disciplinaId], references: [id])
-  aluno        Aluno?     @relation(fields: [alunoId], references: [id])
+  disciplina   Disciplina @relation(fields: [disciplinaId], references: [id], onDelete: Cascade)
+  aluno        Aluno?     @relation(fields: [alunoId], references: [id], onDelete: Cascade)
 
-  @@index([disciplinaId])
+  @@unique([disciplinaId, alunoId])
   @@index([alunoId])
-  @@unique([disciplinaId, alunoId]) // garante 1 registro por disciplina por aluno (ou único global se alunoId for null)
-}
-
-enum Role {
-  ADMIN
-  MANAGER
-  USER
+  @@map("Nota")
 }

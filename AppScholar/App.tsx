@@ -6,25 +6,17 @@ import { createDrawerNavigator, DrawerToggleButton } from '@react-navigation/dra
 import { createNativeStackNavigator } from '@react-navigation/native-stack';
 import { GestureHandlerRootView } from 'react-native-gesture-handler';
 import Ionicons from '@expo/vector-icons/Ionicons';
-
 import { CepProvider } from './src/contexts/CepContext';
 import { AuthProvider } from './src/contexts/AuthContext';
 import { useAuth } from './src/hooks/useAuth';
-
+import { ToastProvider } from './src/components/Toast'; // ✅ NOVO
 import Login from './src/screens/Login';
 import Registro from './src/screens/Registro';
-
-// Novas telas
 import Perfil from './src/screens/Perfil';
 import Cadastros from './src/screens/Cadastros';
 import Boletim from './src/screens/Boletim';
-
-// Botão de sair
 import LogoutButton from './src/screens/LogoutButton';
-
-// Guard
 import { withGuard } from './src/screens/withGuard';
-
 import type { AppDrawerParamList, AuthStackParamList } from './src/types';
 
 const Drawer = createDrawerNavigator<AppDrawerParamList>();
@@ -33,10 +25,10 @@ const Stack = createNativeStackNavigator<AuthStackParamList>();
 function AppDrawer() {
   const GuardCadastros = withGuard('Cadastros', Cadastros);
   const GuardBoletim   = withGuard('Boletim', Boletim);
-
+  
   return (
     <Drawer.Navigator
-      initialRouteName="Perfil" // 👈 aqui troquei de ViaCEP para Perfil
+      initialRouteName="Perfil"
       screenOptions={({ route }) => ({
         headerLeft: () => <DrawerToggleButton />,
         headerRight: () => <LogoutButton />,
@@ -56,13 +48,11 @@ function AppDrawer() {
         component={Perfil}
         options={{ title: 'Meu Perfil' }}
       />
-
       <Drawer.Screen
         name="Cadastros"
         component={GuardCadastros}
         options={{ title: 'Cadastros' }}
       />
-
       <Drawer.Screen
         name="Boletim"
         component={GuardBoletim}
@@ -86,7 +76,7 @@ function AuthStack() {
 
 function RootNavigator() {
   const { token, carregando } = useAuth();
-
+  
   if (carregando) {
     return (
       <View
@@ -101,20 +91,23 @@ function RootNavigator() {
       </View>
     );
   }
-
+  
   return token ? <AppDrawer /> : <AuthStack />;
 }
 
 export default function App() {
   return (
     <GestureHandlerRootView style={{ flex: 1 }}>
-      <AuthProvider>
-        <CepProvider>
-          <NavigationContainer>
-            <RootNavigator />
-          </NavigationContainer>
-        </CepProvider>
-      </AuthProvider>
+      {/* ✅ NOVO: ToastProvider envolve tudo */}
+      <ToastProvider>
+        <AuthProvider>
+          <CepProvider>
+            <NavigationContainer>
+              <RootNavigator />
+            </NavigationContainer>
+          </CepProvider>
+        </AuthProvider>
+      </ToastProvider>
     </GestureHandlerRootView>
   );
 }

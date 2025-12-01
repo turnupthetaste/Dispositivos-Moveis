@@ -12,12 +12,20 @@ import {
 import { NativeStackScreenProps } from '@react-navigation/native-stack';
 import { AuthStackParamList } from '../types';
 import { useAuth } from '../hooks/useAuth';
+import { useToast } from '../components/Toast';
 import { colors, shadows, spacing, borderRadius } from '../theme/colors';
 
 type Props = NativeStackScreenProps<AuthStackParamList, 'Registro'>;
 
+// ✅ Validação de email
+function isValidEmail(email: string): boolean {
+  const regex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
+  return regex.test(email);
+}
+
 export default function Registro({ navigation }: Props) {
   const { register, carregando } = useAuth();
+  const toast = useToast();
   const [email, setEmail] = useState('');
   const [senha, setSenha] = useState('');
   const [conf, setConf] = useState('');
@@ -25,14 +33,45 @@ export default function Registro({ navigation }: Props) {
 
   async function onRegister() {
     setErro(null);
+    
+    // ✅ Validações aprimoradas
+    if (!email.trim()) {
+      const msg = 'Por favor, informe seu e-mail';
+      setErro(msg);
+      toast.warning(msg);
+      return;
+    }
+
+    if (!isValidEmail(email)) {
+      const msg = 'E-mail inválido';
+      setErro(msg);
+      toast.error(msg);
+      return;
+    }
+
+    if (!senha || senha.length < 4) {
+      const msg = 'Senha deve ter no mínimo 4 caracteres';
+      setErro(msg);
+      toast.warning(msg);
+      return;
+    }
+
+    if (senha !== conf) {
+      const msg = 'As senhas não coincidem';
+      setErro(msg);
+      toast.error(msg);
+      return;
+    }
+
     try {
-      if (!email || senha.length < 4 || senha !== conf) {
-        setErro('Verifique e-mail, senha (mín. 4) e confirmação.');
-        return;
-      }
-      await register({ email, senha });
+      await register({ email: email.trim(), senha });
+      // ✅ Feedback de sucesso
+      toast.success('Conta criada com sucesso!');
     } catch (e: any) {
-      setErro(e?.message ?? 'Falha no registro');
+      const msg = e?.message ?? 'Falha no registro';
+      setErro(msg);
+      // ✅ Feedback de erro
+      toast.error(msg);
     }
   }
 
@@ -62,7 +101,10 @@ export default function Registro({ navigation }: Props) {
               placeholder="seu@email.com"
               placeholderTextColor={colors.textMuted}
               value={email}
-              onChangeText={setEmail}
+              onChangeText={(text) => {
+                setEmail(text);
+                setErro(null);
+              }}
               style={styles.input}
               autoCapitalize="none"
               autoComplete="email"
@@ -77,7 +119,10 @@ export default function Registro({ navigation }: Props) {
               placeholder="Mínimo 4 caracteres"
               placeholderTextColor={colors.textMuted}
               value={senha}
-              onChangeText={setSenha}
+              onChangeText={(text) => {
+                setSenha(text);
+                setErro(null);
+              }}
               style={styles.input}
               secureTextEntry
               maxLength={20}
@@ -90,7 +135,10 @@ export default function Registro({ navigation }: Props) {
               placeholder="Digite novamente"
               placeholderTextColor={colors.textMuted}
               value={conf}
-              onChangeText={setConf}
+              onChangeText={(text) => {
+                setConf(text);
+                setErro(null);
+              }}
               style={styles.input}
               secureTextEntry
               maxLength={20}

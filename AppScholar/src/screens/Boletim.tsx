@@ -7,20 +7,29 @@ import { calcularMedia, statusPorMedia } from '../utils/grades';
 import { USE_API } from '../services/useApiFlag';
 import { listarDisciplinas, listarNotas, salvarNotas as salvarNotasApi } from '../services/schoolService';
 import { colors, shadows, spacing, borderRadius } from '../theme/colors';
+import { useAuth } from '../hooks/useAuth';
+import { useToast } from '../components/Toast';
 
 const KEY_DISCIPLINAS = 'cad_disciplinas';
 const KEY_NOTAS = 'boletim_notas';
 
 export default function Boletim() {
+  const { user } = useAuth();
+  const toast = useToast();
   const [disciplinas, setDisciplinas] = useState<Disciplina[]>([]);
   const [notas, setNotas] = useState<Nota[]>([]);
+  const [salvando, setSalvando] = useState(false);
 
   useEffect(() => {
     (async () => {
       if (USE_API) {
-        const [d, n] = await Promise.all([listarDisciplinas(), listarNotas()]);
-        setDisciplinas(d);
-        setNotas(n);
+        try {
+          const [d, n] = await Promise.all([listarDisciplinas(), listarNotas()]);
+          setDisciplinas(d);
+          setNotas(n);
+        } catch (error: any) {
+          toast.error('Erro ao carregar dados: ' + (error?.message ?? 'Erro desconhecido'));
+        }
       } else {
         const [d, n] = await Promise.all([
           AsyncStorage.getItem(KEY_DISCIPLINAS),
@@ -34,6 +43,13 @@ export default function Boletim() {
 
   function atualizarNota(disciplinaId: string, campo: 'n1' | 'n2', valorStr: string) {
     const valor = Number(valorStr.replace(',', '.'));
+    
+    // ✅ Validação: notas entre 0 e 10
+    if (isFinite(valor) && (valor < 0 || valor > 10)) {
+      toast.warning('Nota deve estar entre 0 e 10');
+      return;
+    }
+
     const current = notas.find(x => x.disciplinaId === disciplinaId);
     let next: Nota[];
     if (!current) {
@@ -47,10 +63,30 @@ export default function Boletim() {
   }
 
   async function salvarNotas() {
-    if (USE_API) {
-      await salvarNotasApi(notas);
-    } else {
-      await AsyncStorage.setItem(KEY_NOTAS, JSON.stringify(notas));
+    setSalvando(true);
+    try {
+      // ✅ Validar todas as notas antes de salvar
+      for (const nota of notas) {
+        if (nota.n1 < 0 || nota.n1 > 10 || nota.n2 < 0 || nota.n2 > 10) {
+          toast.error('Todas as notas devem estar entre 0 e 10');
+          setSalvando(false);
+          return;
+        }
+      }
+
+      if (USE_API) {
+        await salvarNotasApi(notas);
+      } else {
+        await AsyncStorage.setItem(KEY_NOTAS, JSON.stringify(notas));
+      }
+      
+      // ✅ Feedback de sucesso
+      toast.success('Notas salvas com sucesso!');
+    } catch (error: any) {
+      // ✅ Feedback de erro
+      toast.error('Erro ao salvar notas: ' + (error?.message ?? 'Erro desconhecido'));
+    } finally {
+      setSalvando(false);
     }
   }
 
@@ -80,6 +116,9 @@ export default function Boletim() {
   const emExame = boletim.filter(i => i.status === 'exame').length;
   const reprovados = boletim.filter(i => i.status === 'reprovado').length;
 
+  // ✅ Mostrar mensagem específica para usuários do tipo 'user'
+  const isUser = user?.perfil === 'user';
+
   return (
     <View style={styles.container}>
       <ScrollView contentContainerStyle={styles.content}>
@@ -88,7 +127,14 @@ export default function Boletim() {
           <View style={styles.headerIcon}>
             <Text style={styles.iconText}>📊</Text>
           </View>
-          <Text style={styles.title}>Boletim Escolar</Text>
+          <Text style={styles.title}>
+            {isUser ? 'Meu Boletim' : 'Boletim Escolar'}
+          </Text>
+          {isUser && (
+            <Text style={styles.subtitle}>
+              Visualizando suas notas
+            </Text>
+          )}
           {boletim.length > 0 && (
             <View style={styles.statsContainer}>
               <StatCard label="Média Geral" value={mediaGeral.toFixed(1)} color={colors.primary} />
@@ -105,7 +151,10 @@ export default function Boletim() {
             <Text style={styles.emptyIcon}>📚</Text>
             <Text style={styles.emptyTitle}>Nenhuma disciplina cadastrada</Text>
             <Text style={styles.emptyText}>
-              Cadastre disciplinas em "Cadastros" para começar a lançar notas
+              {isUser 
+                ? 'Entre em contato com a administração para cadastrar disciplinas'
+                : 'Cadastre disciplinas em "Cadastros" para começar a lançar notas'
+              }
             </Text>
           </View>
         ) : (
@@ -116,15 +165,23 @@ export default function Boletim() {
                 item={item}
                 index={index}
                 onUpdateNota={atualizarNota}
+                readOnly={isUser} // ✅ User só visualiza, não edita
               />
             ))}
           </View>
         )}
 
-        {boletim.length > 0 && (
-          <TouchableOpacity style={styles.btnSave} onPress={salvarNotas} activeOpacity={0.8}>
+        {boletim.length > 0 && !isUser && (
+          <TouchableOpacity 
+            style={[styles.btnSave, salvando && styles.btnSaveDisabled]} 
+            onPress={salvarNotas}
+            disabled={salvando}
+            activeOpacity={0.8}
+          >
             <Text style={styles.btnSaveIcon}>💾</Text>
-            <Text style={styles.btnSaveText}>Salvar Notas</Text>
+            <Text style={styles.btnSaveText}>
+              {salvando ? 'Salvando...' : 'Salvar Notas'}
+            </Text>
           </TouchableOpacity>
         )}
       </ScrollView>
@@ -184,10 +241,12 @@ function DisciplinaCard({
   item,
   index,
   onUpdateNota,
+  readOnly = false,
 }: {
   item: BoletimItem;
   index: number;
   onUpdateNota: (id: string, campo: 'n1' | 'n2', valor: string) => void;
+  readOnly?: boolean;
 }) {
   return (
     <View style={cardStyles.container}>
@@ -203,13 +262,14 @@ function DisciplinaCard({
         <View style={cardStyles.notaGroup}>
           <Text style={cardStyles.notaLabel}>N1</Text>
           <TextInput
-            style={cardStyles.notaInput}
+            style={[cardStyles.notaInput, readOnly && cardStyles.notaInputReadOnly]}
             keyboardType="numeric"
             value={String(item.n1 || '')}
             onChangeText={(v) => onUpdateNota(item.disciplinaId, 'n1', v)}
             placeholder="0.0"
             placeholderTextColor={colors.textDim}
             maxLength={4}
+            editable={!readOnly}
           />
         </View>
 
@@ -218,13 +278,14 @@ function DisciplinaCard({
         <View style={cardStyles.notaGroup}>
           <Text style={cardStyles.notaLabel}>N2</Text>
           <TextInput
-            style={cardStyles.notaInput}
+            style={[cardStyles.notaInput, readOnly && cardStyles.notaInputReadOnly]}
             keyboardType="numeric"
             value={String(item.n2 || '')}
             onChangeText={(v) => onUpdateNota(item.disciplinaId, 'n2', v)}
             placeholder="0.0"
             placeholderTextColor={colors.textDim}
             maxLength={4}
+            editable={!readOnly}
           />
         </View>
 
@@ -306,6 +367,11 @@ const cardStyles = StyleSheet.create({
     textAlign: 'center',
     borderWidth: 1,
     borderColor: colors.inputBorder,
+  },
+  notaInputReadOnly: {
+    backgroundColor: colors.backgroundAlt,
+    borderColor: colors.border,
+    opacity: 0.7,
   },
   plus: {
     fontSize: 18,
@@ -424,6 +490,10 @@ const styles = StyleSheet.create({
     fontWeight: '700',
     color: colors.text,
   },
+  subtitle: {
+    fontSize: 14,
+    color: colors.textMuted,
+  },
   statsContainer: {
     flexDirection: 'row',
     width: '100%',
@@ -441,6 +511,9 @@ const styles = StyleSheet.create({
     justifyContent: 'center',
     gap: spacing.sm,
     ...shadows.medium,
+  },
+  btnSaveDisabled: {
+    opacity: 0.6,
   },
   btnSaveIcon: {
     fontSize: 20,

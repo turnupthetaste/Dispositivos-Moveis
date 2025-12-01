@@ -12,26 +12,58 @@ import {
 import { NativeStackScreenProps } from '@react-navigation/native-stack';
 import { AuthStackParamList } from '../types';
 import { useAuth } from '../hooks/useAuth';
+import { useToast } from '../components/Toast';
 import { colors, shadows, spacing, borderRadius } from '../theme/colors';
 
 type Props = NativeStackScreenProps<AuthStackParamList, 'Login'>;
 
+// ✅ Validação de email
+function isValidEmail(email: string): boolean {
+  const regex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
+  return regex.test(email);
+}
+
 export default function Login({ navigation }: Props) {
   const { login, carregando } = useAuth();
+  const toast = useToast();
   const [email, setEmail] = useState('');
   const [senha, setSenha] = useState('');
   const [erro, setErro] = useState<string | null>(null);
 
   async function onLogin() {
     setErro(null);
+    
+    // ✅ Validações aprimoradas
+    if (!email.trim()) {
+      const msg = 'Por favor, informe seu e-mail';
+      setErro(msg);
+      toast.warning(msg);
+      return;
+    }
+
+    if (!isValidEmail(email)) {
+      const msg = 'E-mail inválido';
+      setErro(msg);
+      toast.error(msg);
+      return;
+    }
+
+    if (!senha || senha.length < 4) {
+      const msg = 'Senha deve ter no mínimo 4 caracteres';
+      setErro(msg);
+      toast.warning(msg);
+      return;
+    }
+
     try {
-      if (!email || senha.length < 4) {
-        setErro('Preencha e-mail e senha (mín. 4 caracteres).');
-        return;
-      }
-      await login({ email, senha });
+      await login({ email: email.trim(), senha });
+      // ✅ Feedback de sucesso
+      toast.success('Login realizado com sucesso!');
     } catch (e: any) {
-      setErro(e?.message ?? 'Falha no login');
+      const msg = e?.message ?? 'Falha no login';
+      setErro(msg);
+      // ✅ Feedback de erro
+      toast.error(msg);
     }
   }
 
@@ -61,7 +93,10 @@ export default function Login({ navigation }: Props) {
               placeholder="seu@email.com"
               placeholderTextColor={colors.textMuted}
               value={email}
-              onChangeText={setEmail}
+              onChangeText={(text) => {
+                setEmail(text);
+                setErro(null);
+              }}
               style={styles.input}
               autoCapitalize="none"
               autoComplete="email"
@@ -76,7 +111,10 @@ export default function Login({ navigation }: Props) {
               placeholder="••••••••"
               placeholderTextColor={colors.textMuted}
               value={senha}
-              onChangeText={setSenha}
+              onChangeText={(text) => {
+                setSenha(text);
+                setErro(null);
+              }}
               style={styles.input}
               secureTextEntry
               maxLength={20}
