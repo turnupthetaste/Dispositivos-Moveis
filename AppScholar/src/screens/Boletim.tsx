@@ -1,3 +1,4 @@
+// src/screens/Boletim.tsx
 import React, { useEffect, useMemo, useState } from 'react';
 import { View, Text, StyleSheet, TextInput, TouchableOpacity, ScrollView } from 'react-native';
 import AsyncStorage from '@react-native-async-storage/async-storage';
@@ -5,8 +6,7 @@ import type { Disciplina, Nota, BoletimItem } from '../types/school';
 import { calcularMedia, statusPorMedia } from '../utils/grades';
 import { USE_API } from '../services/useApiFlag';
 import { listarDisciplinas, listarNotas, salvarNotas as salvarNotasApi } from '../services/schoolService';
-import { colors } from '../theme/colors';
-
+import { colors, shadows, spacing, borderRadius } from '../theme/colors';
 
 const KEY_DISCIPLINAS = 'cad_disciplinas';
 const KEY_NOTAS = 'boletim_notas';
@@ -70,121 +70,403 @@ export default function Boletim() {
     });
   }, [disciplinas, notas]);
 
+  const mediaGeral = useMemo(() => {
+    if (boletim.length === 0) return 0;
+    const soma = boletim.reduce((acc, item) => acc + item.media, 0);
+    return soma / boletim.length;
+  }, [boletim]);
+
+  const aprovados = boletim.filter(i => i.status === 'aprovado').length;
+  const emExame = boletim.filter(i => i.status === 'exame').length;
+  const reprovados = boletim.filter(i => i.status === 'reprovado').length;
+
   return (
     <View style={styles.container}>
-      <Text style={styles.title}>Boletim</Text>
-      <ScrollView contentContainerStyle={{ gap: 12, paddingBottom: 40 }}>
-        {boletim.length === 0 ? (
-          <Text style={styles.muted}>Nenhuma disciplina cadastrada (cadastre em “Cadastros”).</Text>
-        ) : (
-          boletim.map(item => (
-            <View key={item.disciplinaId} style={styles.card}>
-              <Text style={styles.sub}>{item.disciplina}</Text>
-              <View style={styles.row}>
-                <View style={{ flex: 1 }}>
-                  <Text style={styles.label}>N1</Text>
-                  <TextInput
-                    style={styles.input}
-                    keyboardType="numeric"
-                    value={String(item.n1 || '')}
-                    onChangeText={(v) => atualizarNota(item.disciplinaId, 'n1', v)}
-                    placeholder="0 a 10"
-                  />
-                </View>
-                <View style={{ width: 12 }} />
-                <View style={{ flex: 1 }}>
-                  <Text style={styles.label}>N2</Text>
-                  <TextInput
-                    style={styles.input}
-                    keyboardType="numeric"
-                    value={String(item.n2 || '')}
-                    onChangeText={(v) => atualizarNota(item.disciplinaId, 'n2', v)}
-                    placeholder="0 a 10"
-                  />
-                </View>
-              </View>
-
-              <View style={styles.row}>
-                <Text style={styles.media}>Média: {item.media.toFixed(1)}</Text>
-                <StatusPill status={item.status} />
-              </View>
+      <ScrollView contentContainerStyle={styles.content}>
+        {/* Header com estatísticas */}
+        <View style={styles.header}>
+          <View style={styles.headerIcon}>
+            <Text style={styles.iconText}>📊</Text>
+          </View>
+          <Text style={styles.title}>Boletim Escolar</Text>
+          {boletim.length > 0 && (
+            <View style={styles.statsContainer}>
+              <StatCard label="Média Geral" value={mediaGeral.toFixed(1)} color={colors.primary} />
+              <StatCard label="Aprovado" value={aprovados.toString()} color={colors.gradeExcellent} small />
+              <StatCard label="Exame" value={emExame.toString()} color={colors.gradeWarning} small />
+              <StatCard label="Reprovado" value={reprovados.toString()} color={colors.gradeFail} small />
             </View>
-          ))
+          )}
+        </View>
+
+        {/* Lista de disciplinas */}
+        {boletim.length === 0 ? (
+          <View style={styles.emptyState}>
+            <Text style={styles.emptyIcon}>📚</Text>
+            <Text style={styles.emptyTitle}>Nenhuma disciplina cadastrada</Text>
+            <Text style={styles.emptyText}>
+              Cadastre disciplinas em "Cadastros" para começar a lançar notas
+            </Text>
+          </View>
+        ) : (
+          <View style={styles.disciplinasList}>
+            {boletim.map((item, index) => (
+              <DisciplinaCard
+                key={item.disciplinaId}
+                item={item}
+                index={index}
+                onUpdateNota={atualizarNota}
+              />
+            ))}
+          </View>
         )}
 
         {boletim.length > 0 && (
-  <TouchableOpacity style={styles.btn} onPress={salvarNotas}>
-    <Text style={styles.btnText}>Salvar notas</Text>
-  </TouchableOpacity>
-)}
-
+          <TouchableOpacity style={styles.btnSave} onPress={salvarNotas} activeOpacity={0.8}>
+            <Text style={styles.btnSaveIcon}>💾</Text>
+            <Text style={styles.btnSaveText}>Salvar Notas</Text>
+          </TouchableOpacity>
+        )}
       </ScrollView>
     </View>
   );
 }
 
-function StatusPill({ status }: { status: 'aprovado' | 'exame' | 'reprovado' }) {
-  const map = { aprovado: '#28a745', exame: '#ffc107', reprovado: '#dc3545' } as const;
+// Componente de Card de Estatística
+function StatCard({
+  label,
+  value,
+  color,
+  small = false,
+}: {
+  label: string;
+  value: string;
+  color: string;
+  small?: boolean;
+}) {
   return (
-    <View style={[{ paddingVertical: 6, paddingHorizontal: 10, borderRadius: 999, backgroundColor: map[status] }]}>
-      <Text style={{ color: '#000', fontWeight: '700' }}>{status.toUpperCase()}</Text>
+    <View style={[statStyles.card, small && statStyles.cardSmall]}>
+      <Text style={[statStyles.value, { color }]}>{value}</Text>
+      <Text style={statStyles.label}>{label}</Text>
     </View>
   );
 }
-const styles = StyleSheet.create({
-  container: {
-    flex: 1,
-    padding: 16,
-    backgroundColor: colors.background,
-  },
 
-  title: {
-    color: colors.accent,
-    fontWeight: '700',
-    marginBottom: 12,
-    fontSize: 18,
-  },
-
-  muted: { color: colors.textMuted },
-
+const statStyles = StyleSheet.create({
   card: {
+    flex: 1,
     backgroundColor: colors.card,
-    padding: 12,
-    borderRadius: 8,
-    gap: 8,
+    padding: spacing.lg,
+    borderRadius: borderRadius.md,
+    alignItems: 'center',
+    gap: spacing.xs,
     borderWidth: 1,
     borderColor: colors.border,
+    ...shadows.small,
   },
+  cardSmall: {
+    padding: spacing.md,
+  },
+  value: {
+    fontSize: 28,
+    fontWeight: '700',
+  },
+  label: {
+    fontSize: 11,
+    color: colors.textMuted,
+    fontWeight: '600',
+    textAlign: 'center',
+  },
+});
 
-  sub: { color: colors.text, fontWeight: '700' },
+// Componente de Card de Disciplina
+function DisciplinaCard({
+  item,
+  index,
+  onUpdateNota,
+}: {
+  item: BoletimItem;
+  index: number;
+  onUpdateNota: (id: string, campo: 'n1' | 'n2', valor: string) => void;
+}) {
+  return (
+    <View style={cardStyles.container}>
+      <View style={cardStyles.header}>
+        <View style={cardStyles.headerLeft}>
+          <Text style={cardStyles.number}>{String(index + 1).padStart(2, '0')}</Text>
+          <Text style={cardStyles.disciplina}>{item.disciplina}</Text>
+        </View>
+        <StatusPill status={item.status} />
+      </View>
 
-  row: {
+      <View style={cardStyles.notasContainer}>
+        <View style={cardStyles.notaGroup}>
+          <Text style={cardStyles.notaLabel}>N1</Text>
+          <TextInput
+            style={cardStyles.notaInput}
+            keyboardType="numeric"
+            value={String(item.n1 || '')}
+            onChangeText={(v) => onUpdateNota(item.disciplinaId, 'n1', v)}
+            placeholder="0.0"
+            placeholderTextColor={colors.textDim}
+            maxLength={4}
+          />
+        </View>
+
+        <Text style={cardStyles.plus}>+</Text>
+
+        <View style={cardStyles.notaGroup}>
+          <Text style={cardStyles.notaLabel}>N2</Text>
+          <TextInput
+            style={cardStyles.notaInput}
+            keyboardType="numeric"
+            value={String(item.n2 || '')}
+            onChangeText={(v) => onUpdateNota(item.disciplinaId, 'n2', v)}
+            placeholder="0.0"
+            placeholderTextColor={colors.textDim}
+            maxLength={4}
+          />
+        </View>
+
+        <Text style={cardStyles.equals}>=</Text>
+
+        <View style={cardStyles.mediaContainer}>
+          <Text style={cardStyles.mediaLabel}>Média</Text>
+          <View style={cardStyles.mediaBox}>
+            <Text style={cardStyles.mediaValue}>{item.media.toFixed(1)}</Text>
+          </View>
+        </View>
+      </View>
+    </View>
+  );
+}
+
+const cardStyles = StyleSheet.create({
+  container: {
+    backgroundColor: colors.card,
+    borderRadius: borderRadius.lg,
+    padding: spacing.lg,
+    gap: spacing.md,
+    borderWidth: 1,
+    borderColor: colors.border,
+    ...shadows.medium,
+  },
+  header: {
     flexDirection: 'row',
     alignItems: 'center',
     justifyContent: 'space-between',
-    gap: 8,
+    paddingBottom: spacing.md,
+    borderBottomWidth: 1,
+    borderBottomColor: colors.border,
   },
-
-  input: {
-    backgroundColor: colors.inputBg,
-    padding: 12,
-    borderRadius: 6,
-    color: colors.text,
-    borderWidth: 1,
-    borderColor: colors.border,
-  },
-
-  label: { color: colors.textMuted, marginBottom: 4 },
-
-  media: { color: colors.text, fontWeight: '700' },
-
-  btn: {
-    padding: 12,
-    borderRadius: 6,
+  headerLeft: {
+    flexDirection: 'row',
     alignItems: 'center',
-    marginTop: 4,
-    backgroundColor: colors.primary,
+    gap: spacing.md,
+    flex: 1,
   },
+  number: {
+    fontSize: 16,
+    fontWeight: '700',
+    color: colors.primary,
+    backgroundColor: colors.primaryLight + '20',
+    paddingHorizontal: spacing.sm,
+    paddingVertical: spacing.xs,
+    borderRadius: borderRadius.sm,
+    overflow: 'hidden',
+  },
+  disciplina: {
+    fontSize: 16,
+    fontWeight: '600',
+    color: colors.text,
+    flex: 1,
+  },
+  notasContainer: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: spacing.sm,
+  },
+  notaGroup: {
+    flex: 1,
+    gap: spacing.xs,
+  },
+  notaLabel: {
+    fontSize: 11,
+    color: colors.textMuted,
+    fontWeight: '700',
+    textAlign: 'center',
+  },
+  notaInput: {
+    backgroundColor: colors.inputBg,
+    padding: spacing.md,
+    borderRadius: borderRadius.md,
+    fontSize: 18,
+    fontWeight: '700',
+    color: colors.text,
+    textAlign: 'center',
+    borderWidth: 1,
+    borderColor: colors.inputBorder,
+  },
+  plus: {
+    fontSize: 18,
+    color: colors.textMuted,
+    fontWeight: '700',
+    marginTop: 16,
+  },
+  equals: {
+    fontSize: 18,
+    color: colors.textMuted,
+    fontWeight: '700',
+    marginTop: 16,
+  },
+  mediaContainer: {
+    flex: 1,
+    gap: spacing.xs,
+  },
+  mediaLabel: {
+    fontSize: 11,
+    color: colors.textMuted,
+    fontWeight: '700',
+    textAlign: 'center',
+  },
+  mediaBox: {
+    backgroundColor: colors.primary + '20',
+    padding: spacing.md,
+    borderRadius: borderRadius.md,
+    alignItems: 'center',
+    borderWidth: 2,
+    borderColor: colors.primary,
+  },
+  mediaValue: {
+    fontSize: 18,
+    fontWeight: '700',
+    color: colors.primary,
+  },
+});
 
-  btnText: { color: '#fff', fontWeight: '700' },
+// Componente de Status Pill
+function StatusPill({ status }: { status: 'aprovado' | 'exame' | 'reprovado' }) {
+  const config = {
+    aprovado: {
+      bg: colors.gradeExcellent,
+      text: 'Aprovado',
+      icon: '✓',
+    },
+    exame: {
+      bg: colors.gradeWarning,
+      text: 'Exame',
+      icon: '⚠',
+    },
+    reprovado: {
+      bg: colors.gradeFail,
+      text: 'Reprovado',
+      icon: '✗',
+    },
+  };
+
+  const { bg, text, icon } = config[status];
+
+  return (
+    <View style={[pillStyles.container, { backgroundColor: bg + '20', borderColor: bg }]}>
+      <Text style={pillStyles.icon}>{icon}</Text>
+      <Text style={[pillStyles.text, { color: bg }]}>{text}</Text>
+    </View>
+  );
+}
+
+const pillStyles = StyleSheet.create({
+  container: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: spacing.xs,
+    paddingVertical: spacing.xs,
+    paddingHorizontal: spacing.md,
+    borderRadius: borderRadius.full,
+    borderWidth: 1,
+  },
+  icon: {
+    fontSize: 12,
+  },
+  text: {
+    fontSize: 12,
+    fontWeight: '700',
+  },
+});
+
+const styles = StyleSheet.create({
+  container: {
+    flex: 1,
+    backgroundColor: colors.background,
+  },
+  content: {
+    padding: spacing.lg,
+    paddingBottom: spacing.xxl,
+    gap: spacing.lg,
+  },
+  header: {
+    alignItems: 'center',
+    gap: spacing.md,
+  },
+  headerIcon: {
+    width: 64,
+    height: 64,
+    borderRadius: borderRadius.full,
+    backgroundColor: colors.card,
+    alignItems: 'center',
+    justifyContent: 'center',
+    ...shadows.medium,
+  },
+  iconText: {
+    fontSize: 32,
+  },
+  title: {
+    fontSize: 24,
+    fontWeight: '700',
+    color: colors.text,
+  },
+  statsContainer: {
+    flexDirection: 'row',
+    width: '100%',
+    gap: spacing.sm,
+  },
+  disciplinasList: {
+    gap: spacing.md,
+  },
+  btnSave: {
+    flexDirection: 'row',
+    backgroundColor: colors.accent,
+    padding: spacing.lg,
+    borderRadius: borderRadius.lg,
+    alignItems: 'center',
+    justifyContent: 'center',
+    gap: spacing.sm,
+    ...shadows.medium,
+  },
+  btnSaveIcon: {
+    fontSize: 20,
+  },
+  btnSaveText: {
+    color: colors.white,
+    fontSize: 16,
+    fontWeight: '700',
+  },
+  emptyState: {
+    alignItems: 'center',
+    paddingVertical: spacing.xxl * 2,
+    gap: spacing.md,
+  },
+  emptyIcon: {
+    fontSize: 64,
+  },
+  emptyTitle: {
+    fontSize: 18,
+    fontWeight: '700',
+    color: colors.text,
+  },
+  emptyText: {
+    fontSize: 14,
+    color: colors.textMuted,
+    textAlign: 'center',
+    paddingHorizontal: spacing.xl,
+  },
 });

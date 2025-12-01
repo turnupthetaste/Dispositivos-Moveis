@@ -12,7 +12,7 @@ import {
 import { NativeStackScreenProps } from '@react-navigation/native-stack';
 import { AuthStackParamList } from '../types';
 import { useAuth } from '../hooks/useAuth';
-import { colors } from '../theme/colors';
+import { colors, shadows, spacing, borderRadius } from '../theme/colors';
 
 type Props = NativeStackScreenProps<AuthStackParamList, 'Login'>;
 
@@ -37,56 +37,87 @@ export default function Login({ navigation }: Props) {
 
   return (
     <SafeAreaView style={styles.safe}>
-      <View style={styles.card}>
-        <Text style={styles.title}>LOGIN</Text>
-        <Text style={styles.hint}>
-          Dica de perfil: use email terminando com{' '}
-          <Text style={styles.bold}>@admin.com</Text> (admin) ou{' '}
-          <Text style={styles.bold}>@gestor.com</Text> (manager). Ex.: maria@admin.com
-        </Text>
+      <View style={styles.container}>
+        {/* Header com gradiente visual */}
+        <View style={styles.header}>
+          <View style={styles.iconContainer}>
+            <Text style={styles.icon}>🎓</Text>
+          </View>
+          <Text style={styles.title}>Bem-vindo</Text>
+          <Text style={styles.subtitle}>Entre para continuar</Text>
+        </View>
 
-        <TextInput
-          placeholder="E-mail"
-          placeholderTextColor={colors.textMuted}
-          value={email}
-          onChangeText={setEmail}
-          style={styles.input}
-          autoCapitalize="none"
-          autoComplete="email"
-          autoCorrect={false}
-          keyboardType="email-address"
-        />
-        <TextInput
-          placeholder="Senha"
-          placeholderTextColor={colors.textMuted}
-          value={senha}
-          onChangeText={setSenha}
-          style={styles.input}
-          secureTextEntry
-          maxLength={20}
-        />
+        {/* Card principal */}
+        <View style={styles.card}>
+          <Text style={styles.hint}>
+            💡 <Text style={styles.hintBold}>Dica:</Text> Use e-mail com{' '}
+            <Text style={styles.hintEmphasis}>@admin.com</Text> (admin) ou{' '}
+            <Text style={styles.hintEmphasis}>@gestor.com</Text> (gestor)
+          </Text>
 
-        {!!erro && <Text style={styles.err}>{erro}</Text>}
+          <View style={styles.inputGroup}>
+            <Text style={styles.label}>E-mail</Text>
+            <TextInput
+              placeholder="seu@email.com"
+              placeholderTextColor={colors.textMuted}
+              value={email}
+              onChangeText={setEmail}
+              style={styles.input}
+              autoCapitalize="none"
+              autoComplete="email"
+              autoCorrect={false}
+              keyboardType="email-address"
+            />
+          </View>
 
-        <TouchableOpacity
-          style={styles.btnPrimary}
-          onPress={onLogin}
-          disabled={carregando}
-        >
-          {carregando ? (
-            <ActivityIndicator color="#fff" />
-          ) : (
-            <Text style={styles.btnText}>Entrar</Text>
+          <View style={styles.inputGroup}>
+            <Text style={styles.label}>Senha</Text>
+            <TextInput
+              placeholder="••••••••"
+              placeholderTextColor={colors.textMuted}
+              value={senha}
+              onChangeText={setSenha}
+              style={styles.input}
+              secureTextEntry
+              maxLength={20}
+            />
+          </View>
+
+          {!!erro && (
+            <View style={styles.errorContainer}>
+              <Text style={styles.errorIcon}>⚠️</Text>
+              <Text style={styles.errorText}>{erro}</Text>
+            </View>
           )}
-        </TouchableOpacity>
 
-        <TouchableOpacity
-          style={styles.btnSecondary}
-          onPress={() => navigation.navigate('Registro')}
-          disabled={carregando}
-        >
-          <Text style={styles.btnText}>Criar conta</Text>
-        </TouchableOpacity>
+          <TouchableOpacity
+            style={[styles.btnPrimary, carregando && styles.btnDisabled]}
+            onPress={onLogin}
+            disabled={carregando}
+            activeOpacity={0.8}
+          >
+            {carregando ? (
+              <ActivityIndicator color={colors.white} />
+            ) : (
+              <Text style={styles.btnPrimaryText}>Entrar</Text>
+            )}
+          </TouchableOpacity>
+
+          <View style={styles.divider}>
+            <View style={styles.dividerLine} />
+            <Text style={styles.dividerText}>ou</Text>
+            <View style={styles.dividerLine} />
+          </View>
+
+          <TouchableOpacity
+            style={styles.btnSecondary}
+            onPress={() => navigation.navigate('Registro')}
+            disabled={carregando}
+            activeOpacity={0.8}
+          >
+            <Text style={styles.btnSecondaryText}>Criar nova conta</Text>
+          </TouchableOpacity>
+        </View>
       </View>
     </SafeAreaView>
   );
@@ -96,62 +127,145 @@ const styles = StyleSheet.create({
   safe: {
     flex: 1,
     backgroundColor: colors.background,
+  },
+  container: {
+    flex: 1,
+    paddingHorizontal: spacing.lg,
+    justifyContent: 'center',
+    paddingVertical: spacing.xxl,
+  },
+  header: {
+    alignItems: 'center',
+    marginBottom: spacing.xxl,
+  },
+  iconContainer: {
+    width: 80,
+    height: 80,
+    borderRadius: borderRadius.full,
+    backgroundColor: colors.card,
     alignItems: 'center',
     justifyContent: 'center',
+    marginBottom: spacing.lg,
+    ...shadows.medium,
   },
-  card: {
-    width: '90%',
-    maxWidth: 320,
-    gap: 12,
-    backgroundColor: colors.card,
-    padding: 16,
-    borderRadius: 12,
-    borderWidth: 1,
-    borderColor: colors.border,
+  icon: {
+    fontSize: 40,
   },
   title: {
-    color: colors.accent,
-    alignSelf: 'center',
-    marginBottom: 4,
-    fontWeight: '700',
-    fontSize: 20,
-  },
-  hint: {
-    color: colors.textMuted,
-    fontSize: 12,
-    marginBottom: 4,
-    textAlign: 'center',
-  },
-  bold: {
+    fontSize: 32,
     fontWeight: '700',
     color: colors.text,
+    marginBottom: spacing.xs,
+  },
+  subtitle: {
+    fontSize: 16,
+    color: colors.textMuted,
+  },
+  card: {
+    backgroundColor: colors.card,
+    borderRadius: borderRadius.lg,
+    padding: spacing.xl,
+    gap: spacing.lg,
+    borderWidth: 1,
+    borderColor: colors.border,
+    ...shadows.large,
+  },
+  hint: {
+    fontSize: 13,
+    color: colors.textMuted,
+    backgroundColor: colors.backgroundAlt,
+    padding: spacing.md,
+    borderRadius: borderRadius.md,
+    lineHeight: 18,
+    borderLeftWidth: 3,
+    borderLeftColor: colors.accent,
+  },
+  hintBold: {
+    fontWeight: '700',
+    color: colors.text,
+  },
+  hintEmphasis: {
+    fontWeight: '700',
+    color: colors.primary,
+  },
+  inputGroup: {
+    gap: spacing.sm,
+  },
+  label: {
+    fontSize: 14,
+    fontWeight: '600',
+    color: colors.textSecondary,
   },
   input: {
     backgroundColor: colors.inputBg,
-    padding: 12,
-    borderRadius: 6,
+    padding: spacing.md,
+    borderRadius: borderRadius.md,
+    fontSize: 16,
     color: colors.text,
     borderWidth: 1,
-    borderColor: colors.border,
+    borderColor: colors.inputBorder,
+  },
+  errorContainer: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: spacing.sm,
+    backgroundColor: colors.dangerLight + '15',
+    padding: spacing.md,
+    borderRadius: borderRadius.md,
+    borderLeftWidth: 3,
+    borderLeftColor: colors.danger,
+  },
+  errorIcon: {
+    fontSize: 16,
+  },
+  errorText: {
+    flex: 1,
+    color: colors.dangerLight,
+    fontSize: 14,
   },
   btnPrimary: {
-    padding: 12,
-    borderRadius: 6,
-    alignItems: 'center',
     backgroundColor: colors.primary,
-  },
-  btnSecondary: {
-    padding: 12,
-    borderRadius: 6,
+    padding: spacing.lg,
+    borderRadius: borderRadius.md,
     alignItems: 'center',
-    backgroundColor: colors.primarySoft,
+    marginTop: spacing.sm,
+    ...shadows.primaryGlow,
   },
-  btnText: {
-    color: '#fff',
+  btnPrimaryText: {
+    color: colors.white,
+    fontSize: 16,
     fontWeight: '700',
   },
-  err: {
-    color: colors.danger,
-    textAlign: 'center',
+  btnDisabled: {
+    opacity: 0.6,
+  },
+  divider: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: spacing.md,
+    marginVertical: spacing.sm,
+  },
+  dividerLine: {
+    flex: 1,
+    height: 1,
+    backgroundColor: colors.border,
+  },
+  dividerText: {
+    color: colors.textMuted,
+    fontSize: 12,
+    fontWeight: '600',
+  },
+  btnSecondary: {
+    backgroundColor: colors.backgroundAlt,
+    padding: spacing.lg,
+    borderRadius: borderRadius.md,
+    alignItems: 'center',
+    borderWidth: 1,
+    borderColor: colors.borderLight,
+  },
+  btnSecondaryText: {
+    color: colors.primary,
+    fontSize: 16,
+    fontWeight: '600',
   },
 });

@@ -5,7 +5,7 @@ import AsyncStorage from '@react-native-async-storage/async-storage';
 import { Picker } from '@react-native-picker/picker';
 import type { Aluno, Curso, Disciplina, Professor, Turno } from '../types/school';
 import { USE_API } from '../services/useApiFlag';
-import { colors } from '../theme/colors';
+import { colors, shadows, spacing, borderRadius } from '../theme/colors';
 
 import {
   listarAlunos as apiListarAlunos, criarAluno as apiCriarAluno,
@@ -22,6 +22,13 @@ const KEY_DISCIPLINAS = 'cad_disciplinas';
 const KEY_PROFESSORES = 'cad_professores';
 
 type Tab = 'aluno' | 'curso' | 'disciplina' | 'professor';
+
+const TAB_CONFIG = {
+  aluno: { icon: '👨‍🎓', label: 'Alunos' },
+  curso: { icon: '📚', label: 'Cursos' },
+  disciplina: { icon: '📝', label: 'Disciplinas' },
+  professor: { icon: '👩‍🏫', label: 'Professores' },
+};
 
 export default function Cadastros() {
   const [tab, setTab] = useState<Tab>('aluno');
@@ -57,6 +64,9 @@ export default function Cadastros() {
   const [professorId, setProfessorId] = useState<string | undefined>(undefined);
   const [erroDisc, setErroDisc] = useState<string | null>(null);
 
+  const cursoMap = useMemo(() => Object.fromEntries(cursos.map(c => [c.id, c.nome])), [cursos]);
+  const profMap = useMemo(() => Object.fromEntries(professores.map(p => [p.id, p.nome])), [professores]);
+
   function fromAxiosError(e: any): string {
     if (axios.isAxiosError(e)) {
       const status = e.response?.status;
@@ -69,7 +79,6 @@ export default function Cadastros() {
     return e?.message ?? 'Erro inesperado';
   }
 
-  // PING da API (tenta /health, senão cai para /alunos)
   async function pingApi() {
     try {
       await backend.get('/health').catch(async () => {
@@ -83,7 +92,6 @@ export default function Cadastros() {
     }
   }
 
-  // carregar dados
   useEffect(() => {
     (async () => {
       if (USE_API) {
@@ -114,7 +122,6 @@ export default function Cadastros() {
     })();
   }, []);
 
-  // helpers persistência local
   async function saveAlunos(next: Aluno[]) {
     setAlunos(next);
     await AsyncStorage.setItem(KEY_ALUNOS, JSON.stringify(next));
@@ -132,7 +139,6 @@ export default function Cadastros() {
     await AsyncStorage.setItem(KEY_PROFESSORES, JSON.stringify(next));
   }
 
-  // SUBMITS
   async function onAddAluno() {
     setErroAluno(null); setErroGeral(null);
     if (!nomeAluno.trim() || !emailAluno.includes('@') || !matricula.trim() || !cursoAluno.trim()) {
@@ -245,210 +251,140 @@ export default function Cadastros() {
     }
   }
 
-  const cursoMap = useMemo(() => Object.fromEntries(cursos.map(c => [c.id, c.nome])), [cursos]);
-  const profMap  = useMemo(() => Object.fromEntries(professores.map(p => [p.id, p.nome])), [professores]);
-
   return (
     <View style={styles.container}>
-      <Text style={styles.title}>Cadastros</Text>
-
-      {USE_API && (
-        <Text style={[styles.badge, apiOnline ? styles.ok : styles.fail]}>
-          API: {apiOnline === null ? 'verificando...' : apiOnline ? 'ONLINE' : 'OFFLINE'}
-        </Text>
-      )}
-      {!!erroGeral && <Text style={styles.errCenter}>{erroGeral}</Text>}
-
-      <View style={styles.tabs}>
-        <TabBtn label="Aluno" active={tab === 'aluno'} onPress={() => setTab('aluno')} />
-        <TabBtn label="Curso" active={tab === 'curso'} onPress={() => setTab('curso')} />
-        <TabBtn label="Disciplina" active={tab === 'disciplina'} onPress={() => setTab('disciplina')} />
-        <TabBtn label="Professor" active={tab === 'professor'} onPress={() => setTab('professor')} />
+      {/* Header com Status da API */}
+      <View style={styles.header}>
+        <Text style={styles.title}>Cadastros</Text>
+        {USE_API && apiOnline !== null && (
+          <View style={[styles.apiBadge, apiOnline ? styles.apiOnline : styles.apiOffline]}>
+            <View style={[styles.apiDot, apiOnline ? styles.apiDotOnline : styles.apiDotOffline]} />
+            <Text style={styles.apiText}>{apiOnline ? 'API Online' : 'API Offline'}</Text>
+          </View>
+        )}
       </View>
 
-      <ScrollView contentContainerStyle={{ gap: 12, paddingBottom: 40 }}>
-        {tab === 'aluno' && (
-          <View style={styles.card}>
-            <Text style={styles.sub}>Cadastrar Aluno</Text>
-            <TextInput
-              style={styles.input}
-              placeholder="Nome"
-              placeholderTextColor={colors.textMuted}
-              value={nomeAluno}
-              onChangeText={setNomeAluno}
-            />
-            <TextInput
-              style={styles.input}
-              placeholder="E-mail"
-              placeholderTextColor={colors.textMuted}
-              autoCapitalize="none"
-              keyboardType="email-address"
-              value={emailAluno}
-              onChangeText={setEmailAluno}
-            />
-            <TextInput
-              style={styles.input}
-              placeholder="Matrícula"
-              placeholderTextColor={colors.textMuted}
-              value={matricula}
-              onChangeText={setMatricula}
-            />
-            <TextInput
-              style={styles.input}
-              placeholder="Curso"
-              placeholderTextColor={colors.textMuted}
-              value={cursoAluno}
-              onChangeText={setCursoAluno}
-            />
-            {!!erroAluno && <Text style={styles.err}>{erroAluno}</Text>}
-            <TouchableOpacity style={styles.btn} onPress={onAddAluno}>
-              <Text style={styles.btnText}>Adicionar aluno</Text>
-            </TouchableOpacity>
+      {erroGeral && (
+        <View style={styles.errorBanner}>
+          <Text style={styles.errorIcon}>⚠️</Text>
+          <Text style={styles.errorText}>{erroGeral}</Text>
+        </View>
+      )}
 
-            <Text style={styles.listTitle}>Alunos cadastrados</Text>
-            {alunos.length === 0 ? (
-              <Text style={styles.muted}>Nenhum aluno.</Text>
-            ) : alunos.map(a => (
-              <Text key={a.id} style={styles.item}>
-                • {a.nome} — {a.email} — {a.matricula} — {a.curso}
-              </Text>
-            ))}
+      {/* Tabs */}
+      <ScrollView horizontal showsHorizontalScrollIndicator={false} style={styles.tabsScroll}>
+        <View style={styles.tabs}>
+          {(Object.keys(TAB_CONFIG) as Tab[]).map((t) => (
+            <TabButton
+              key={t}
+              icon={TAB_CONFIG[t].icon}
+              label={TAB_CONFIG[t].label}
+              active={tab === t}
+              onPress={() => setTab(t)}
+            />
+          ))}
+        </View>
+      </ScrollView>
+
+      {/* Conteúdo da Tab */}
+      <ScrollView contentContainerStyle={styles.content}>
+        {tab === 'aluno' && (
+          <View style={styles.section}>
+            <FormCard title="Cadastrar Aluno" icon="👨‍🎓">
+              <Input label="Nome" value={nomeAluno} onChangeText={setNomeAluno} placeholder="Nome completo" />
+              <Input label="E-mail" value={emailAluno} onChangeText={setEmailAluno} placeholder="email@exemplo.com" keyboardType="email-address" />
+              <Input label="Matrícula" value={matricula} onChangeText={setMatricula} placeholder="Ex: 2024001" />
+              <Input label="Curso" value={cursoAluno} onChangeText={setCursoAluno} placeholder="Nome do curso" />
+              {erroAluno && <ErrorMessage text={erroAluno} />}
+              <Button label="Adicionar Aluno" onPress={onAddAluno} />
+            </FormCard>
+
+            <ListCard title="Alunos Cadastrados" count={alunos.length}>
+              {alunos.map((a) => (
+                <ListItem key={a.id} text={`${a.nome} • ${a.email} • ${a.matricula} • ${a.curso}`} />
+              ))}
+            </ListCard>
           </View>
         )}
 
         {tab === 'curso' && (
-          <View style={styles.card}>
-            <Text style={styles.sub}>Cadastrar Curso</Text>
-            <TextInput
-              style={styles.input}
-              placeholder="Nome do curso"
-              placeholderTextColor={colors.textMuted}
-              value={nomeCurso}
-              onChangeText={setNomeCurso}
-            />
-            <Text style={{ color: colors.textMuted }}>Turno</Text>
-            <Picker
-              selectedValue={turno}
-              onValueChange={(v) => setTurno(v)}
-              dropdownIconColor={colors.text}
-              style={{ backgroundColor: colors.inputBg, borderRadius: 6 }}
-            >
-              <Picker.Item label="Matutino" value="matutino" />
-              <Picker.Item label="Vespertino" value="vespertino" />
-              <Picker.Item label="Noturno" value="noturno" />
-            </Picker>
-            {!!erroCurso && <Text style={styles.err}>{erroCurso}</Text>}
-            <TouchableOpacity style={styles.btn} onPress={onAddCurso}>
-              <Text style={styles.btnText}>Adicionar curso</Text>
-            </TouchableOpacity>
+          <View style={styles.section}>
+            <FormCard title="Cadastrar Curso" icon="📚">
+              <Input label="Nome do Curso" value={nomeCurso} onChangeText={setNomeCurso} placeholder="Ex: Engenharia" />
+              <View style={styles.inputGroup}>
+                <Text style={styles.label}>Turno</Text>
+                <Picker
+                  selectedValue={turno}
+                  onValueChange={(v) => setTurno(v)}
+                  dropdownIconColor={colors.text}
+                  style={styles.picker}
+                >
+                  <Picker.Item label="Matutino" value="matutino" />
+                  <Picker.Item label="Vespertino" value="vespertino" />
+                  <Picker.Item label="Noturno" value="noturno" />
+                </Picker>
+              </View>
+              {erroCurso && <ErrorMessage text={erroCurso} />}
+              <Button label="Adicionar Curso" onPress={onAddCurso} />
+            </FormCard>
 
-            <Text style={styles.listTitle}>Cursos cadastrados</Text>
-            {cursos.length === 0 ? (
-              <Text style={styles.muted}>Nenhum curso.</Text>
-            ) : cursos.map(c => (
-              <Text key={c.id} style={styles.item}>
-                • {c.nome} — {c.turno}
-              </Text>
-            ))}
+            <ListCard title="Cursos Cadastrados" count={cursos.length}>
+              {cursos.map((c) => (
+                <ListItem key={c.id} text={`${c.nome} • ${c.turno}`} />
+              ))}
+            </ListCard>
           </View>
         )}
 
         {tab === 'disciplina' && (
-          <View style={styles.card}>
-            <Text style={styles.sub}>Cadastrar Disciplina</Text>
-            <TextInput
-              style={styles.input}
-              placeholder="Nome da disciplina"
-              placeholderTextColor={colors.textMuted}
-              value={nomeDisc}
-              onChangeText={setNomeDisc}
-            />
-            <TextInput
-              style={styles.input}
-              placeholder="Carga horária"
-              placeholderTextColor={colors.textMuted}
-              keyboardType="numeric"
-              value={carga}
-              onChangeText={setCarga}
-            />
+          <View style={styles.section}>
+            <FormCard title="Cadastrar Disciplina" icon="📝">
+              <Input label="Nome da Disciplina" value={nomeDisc} onChangeText={setNomeDisc} placeholder="Ex: Cálculo I" />
+              <Input label="Carga Horária" value={carga} onChangeText={setCarga} placeholder="60" keyboardType="numeric" />
+              <View style={styles.inputGroup}>
+                <Text style={styles.label}>Curso (opcional)</Text>
+                <Picker selectedValue={cursoId} onValueChange={(v) => setCursoId(v)} dropdownIconColor={colors.text} style={styles.picker}>
+                  <Picker.Item label="— nenhum —" value={undefined} />
+                  {cursos.map(c => <Picker.Item key={c.id} label={c.nome} value={c.id} />)}
+                </Picker>
+              </View>
+              <View style={styles.inputGroup}>
+                <Text style={styles.label}>Professor (opcional)</Text>
+                <Picker selectedValue={professorId} onValueChange={(v) => setProfessorId(v)} dropdownIconColor={colors.text} style={styles.picker}>
+                  <Picker.Item label="— nenhum —" value={undefined} />
+                  {professores.map(p => <Picker.Item key={p.id} label={p.nome} value={p.id} />)}
+                </Picker>
+              </View>
+              {erroDisc && <ErrorMessage text={erroDisc} />}
+              <Button label="Adicionar Disciplina" onPress={onAddDisciplina} />
+            </FormCard>
 
-            <Text style={{ color: colors.textMuted }}>Curso (opcional)</Text>
-            <Picker
-              selectedValue={cursoId}
-              onValueChange={(v) => setCursoId(v)}
-              dropdownIconColor={colors.text}
-              style={{ backgroundColor: colors.inputBg, borderRadius: 6 }}
-            >
-              <Picker.Item label="— nenhum —" value={undefined} />
-              {cursos.map(c => <Picker.Item key={c.id} label={c.nome} value={c.id} />)}
-            </Picker>
-
-            <Text style={{ color: colors.textMuted }}>Professor (opcional)</Text>
-            <Picker
-              selectedValue={professorId}
-              onValueChange={(v) => setProfessorId(v)}
-              dropdownIconColor={colors.text}
-              style={{ backgroundColor: colors.inputBg, borderRadius: 6 }}
-            >
-              <Picker.Item label="— nenhum —" value={undefined} />
-              {professores.map(p => <Picker.Item key={p.id} label={p.nome} value={p.id} />)}
-            </Picker>
-
-            {!!erroDisc && <Text style={styles.err}>{erroDisc}</Text>}
-            <TouchableOpacity style={styles.btn} onPress={onAddDisciplina}>
-              <Text style={styles.btnText}>Adicionar disciplina</Text>
-            </TouchableOpacity>
-
-            <Text style={styles.listTitle}>Disciplinas cadastradas</Text>
-            {disciplinas.length === 0 ? (
-              <Text style={styles.muted}>Nenhuma disciplina.</Text>
-            ) : disciplinas.map(d => (
-              <Text key={d.id} style={styles.item}>
-                • {d.nome} — {d.cargaHoraria}h
-                {d.cursoId ? ` — Curso: ${cursoMap[d.cursoId] ?? d.cursoId}` : ''}
-                {d.professorId ? ` — Prof.: ${profMap[d.professorId] ?? d.professorId}` : ''}
-              </Text>
-            ))}
+            <ListCard title="Disciplinas Cadastradas" count={disciplinas.length}>
+              {disciplinas.map((d) => (
+                <ListItem
+                  key={d.id}
+                  text={`${d.nome} • ${d.cargaHoraria}h${d.cursoId ? ` • Curso: ${cursoMap[d.cursoId] ?? d.cursoId}` : ''}${d.professorId ? ` • Prof.: ${profMap[d.professorId] ?? d.professorId}` : ''}`}
+                />
+              ))}
+            </ListCard>
           </View>
         )}
 
         {tab === 'professor' && (
-          <View style={styles.card}>
-            <Text style={styles.sub}>Cadastrar Professor</Text>
-            <TextInput
-              style={styles.input}
-              placeholder="Nome"
-              placeholderTextColor={colors.textMuted}
-              value={nomeProf}
-              onChangeText={setNomeProf}
-            />
-            <TextInput
-              style={styles.input}
-              placeholder="Titulação (ex.: Mestre)"
-              placeholderTextColor={colors.textMuted}
-              value={titulacao}
-              onChangeText={setTitulacao}
-            />
-            <TextInput
-              style={styles.input}
-              placeholder="Tempo de docência (ex.: 5 anos)"
-              placeholderTextColor={colors.textMuted}
-              value={tempoDocencia}
-              onChangeText={setTempoDocencia}
-            />
-            {!!erroProf && <Text style={styles.err}>{erroProf}</Text>}
-            <TouchableOpacity style={styles.btn} onPress={onAddProfessor}>
-              <Text style={styles.btnText}>Adicionar professor</Text>
-            </TouchableOpacity>
+          <View style={styles.section}>
+            <FormCard title="Cadastrar Professor" icon="👩‍🏫">
+              <Input label="Nome" value={nomeProf} onChangeText={setNomeProf} placeholder="Nome completo" />
+              <Input label="Titulação" value={titulacao} onChangeText={setTitulacao} placeholder="Ex: Mestre, Doutor" />
+              <Input label="Tempo de Docência" value={tempoDocencia} onChangeText={setTempoDocencia} placeholder="Ex: 5 anos" />
+              {erroProf && <ErrorMessage text={erroProf} />}
+              <Button label="Adicionar Professor" onPress={onAddProfessor} />
+            </FormCard>
 
-            <Text style={styles.listTitle}>Professores cadastrados</Text>
-            {professores.length === 0 ? (
-              <Text style={styles.muted}>Nenhum professor.</Text>
-            ) : professores.map(p => (
-              <Text key={p.id} style={styles.item}>
-                • {p.nome} — {p.titulacao} — {p.tempoDocencia}
-              </Text>
-            ))}
+            <ListCard title="Professores Cadastrados" count={professores.length}>
+              {professores.map((p) => (
+                <ListItem key={p.id} text={`${p.nome} • ${p.titulacao} • ${p.tempoDocencia}`} />
+              ))}
+            </ListCard>
           </View>
         )}
       </ScrollView>
@@ -456,86 +392,366 @@ export default function Cadastros() {
   );
 }
 
-function cryptoRandom() {
-  return Math.random().toString(36).slice(2) + Date.now().toString(36);
-}
-
-function TabBtn({ label, active, onPress }: { label: string; active: boolean; onPress: () => void }) {
+// Componentes auxiliares
+function TabButton({ icon, label, active, onPress }: { icon: string; label: string; active: boolean; onPress: () => void }) {
   return (
-    <TouchableOpacity onPress={onPress} style={[styles.tabBtn, active && styles.tabBtnActive]}>
-      <Text style={[styles.tabBtnText, active && styles.tabBtnTextActive]}>{label}</Text>
+    <TouchableOpacity
+      onPress={onPress}
+      style={[tabStyles.button, active && tabStyles.buttonActive]}
+      activeOpacity={0.7}
+    >
+      <Text style={tabStyles.icon}>{icon}</Text>
+      <Text style={[tabStyles.label, active && tabStyles.labelActive]}>{label}</Text>
     </TouchableOpacity>
   );
 }
 
-const styles = StyleSheet.create({
-  container: { flex: 1, padding: 16, backgroundColor: colors.background },
-  title: { color: colors.accent, fontWeight: '700', marginBottom: 8, fontSize: 18 },
-
-  badge: {
-    alignSelf: 'flex-start',
-    paddingVertical: 4,
-    paddingHorizontal: 8,
-    borderRadius: 6,
-    marginBottom: 8,
-    color: '#000',
-    fontWeight: '700',
-  },
-  ok: { backgroundColor: colors.accent },
-  fail: { backgroundColor: '#ffc107' },
-
-  tabs: { flexDirection: 'row', gap: 8, marginBottom: 10 },
-
-  tabBtn: {
-    paddingVertical: 8,
-    paddingHorizontal: 12,
-    borderRadius: 6,
+const tabStyles = StyleSheet.create({
+  button: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: spacing.sm,
+    paddingVertical: spacing.md,
+    paddingHorizontal: spacing.lg,
+    borderRadius: borderRadius.full,
     backgroundColor: colors.card,
+    borderWidth: 1,
+    borderColor: colors.border,
   },
-  tabBtnActive: {
-    backgroundColor: colors.primarySoft,
+  buttonActive: {
+    backgroundColor: colors.primary,
+    borderColor: colors.primary,
+    ...shadows.medium,
   },
-  tabBtnText: { color: colors.textMuted },
-  tabBtnTextActive: { color: colors.text, fontWeight: '700' },
+  icon: {
+    fontSize: 18,
+  },
+  label: {
+    fontSize: 14,
+    fontWeight: '600',
+    color: colors.textMuted,
+  },
+  labelActive: {
+    color: colors.white,
+  },
+});
 
+function FormCard({ title, icon, children }: { title: string; icon: string; children: React.ReactNode }) {
+  return (
+    <View style={formStyles.card}>
+      <View style={formStyles.header}>
+        <Text style={formStyles.icon}>{icon}</Text>
+        <Text style={formStyles.title}>{title}</Text>
+      </View>
+      <View style={formStyles.content}>{children}</View>
+    </View>
+  );
+}
+
+const formStyles = StyleSheet.create({
   card: {
     backgroundColor: colors.card,
-    padding: 12,
-    borderRadius: 8,
-    gap: 8,
+    borderRadius: borderRadius.lg,
+    padding: spacing.lg,
+    gap: spacing.lg,
     borderWidth: 1,
     borderColor: colors.border,
+    ...shadows.medium,
   },
-
-  sub: { color: colors.text, fontWeight: '700' },
-
-  input: {
-    backgroundColor: colors.inputBg,
-    padding: 12,
-    borderRadius: 6,
-    color: colors.text,
-    borderWidth: 1,
-    borderColor: colors.border,
-  },
-
-  btn: {
-    padding: 12,
-    borderRadius: 6,
+  header: {
+    flexDirection: 'row',
     alignItems: 'center',
-    backgroundColor: colors.primary,
+    gap: spacing.sm,
+    paddingBottom: spacing.md,
+    borderBottomWidth: 1,
+    borderBottomColor: colors.border,
   },
-  btnText: { color: '#fff', fontWeight: '700' },
+  icon: {
+    fontSize: 20,
+  },
+  title: {
+    fontSize: 16,
+    fontWeight: '700',
+    color: colors.text,
+  },
+  content: {
+    gap: spacing.md,
+  },
+});
 
-  listTitle: {
+function Input({
+  label,
+  value,
+  onChangeText,
+  placeholder,
+  keyboardType = 'default',
+}: {
+  label: string;
+  value: string;
+  onChangeText: (text: string) => void;
+  placeholder?: string;
+  keyboardType?: any;
+}) {
+  return (
+    <View style={styles.inputGroup}>
+      <Text style={styles.label}>{label}</Text>
+      <TextInput
+        style={styles.input}
+        value={value}
+        onChangeText={onChangeText}
+        placeholder={placeholder}
+        placeholderTextColor={colors.textMuted}
+        keyboardType={keyboardType}
+      />
+    </View>
+  );
+}
+
+function Button({ label, onPress }: { label: string; onPress: () => void }) {
+  return (
+    <TouchableOpacity style={styles.button} onPress={onPress} activeOpacity={0.8}>
+      <Text style={styles.buttonText}>{label}</Text>
+    </TouchableOpacity>
+  );
+}
+
+function ErrorMessage({ text }: { text: string }) {
+  return (
+    <View style={styles.errorContainer}>
+      <Text style={styles.errorIcon}>⚠️</Text>
+      <Text style={styles.errorTextInline}>{text}</Text>
+    </View>
+  );
+}
+
+function ListCard({ title, count, children }: { title: string; count: number; children: React.ReactNode }) {
+  return (
+    <View style={listStyles.card}>
+      <View style={listStyles.header}>
+        <Text style={listStyles.title}>{title}</Text>
+        <View style={listStyles.badge}>
+          <Text style={listStyles.badgeText}>{count}</Text>
+        </View>
+      </View>
+      <View style={listStyles.content}>
+        {count === 0 ? (
+          <Text style={listStyles.empty}>Nenhum item cadastrado</Text>
+        ) : (
+          children
+        )}
+      </View>
+    </View>
+  );
+}
+
+const listStyles = StyleSheet.create({
+  card: {
+    backgroundColor: colors.card,
+    borderRadius: borderRadius.lg,
+    padding: spacing.lg,
+    gap: spacing.md,
+    borderWidth: 1,
+    borderColor: colors.border,
+    ...shadows.small,
+  },
+  header: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+  },
+  title: {
+    fontSize: 14,
+    fontWeight: '700',
     color: colors.accent,
-    marginTop: 8,
-    marginBottom: 4,
+  },
+  badge: {
+    backgroundColor: colors.primary + '20',
+    paddingHorizontal: spacing.sm,
+    paddingVertical: 2,
+    borderRadius: borderRadius.full,
+    minWidth: 24,
+    alignItems: 'center',
+  },
+  badgeText: {
+    fontSize: 12,
+    fontWeight: '700',
+    color: colors.primary,
+  },
+  content: {
+    gap: spacing.xs,
+  },
+  empty: {
+    fontSize: 13,
+    color: colors.textMuted,
+    fontStyle: 'italic',
+  },
+});
+
+function ListItem({ text }: { text: string }) {
+  return (
+    <View style={itemStyles.container}>
+      <Text style={itemStyles.bullet}>•</Text>
+      <Text style={itemStyles.text}>{text}</Text>
+    </View>
+  );
+}
+
+const itemStyles = StyleSheet.create({
+  container: {
+    flexDirection: 'row',
+    gap: spacing.sm,
+    paddingVertical: spacing.xs,
+  },
+  bullet: {
+    fontSize: 14,
+    color: colors.primary,
     fontWeight: '700',
   },
+  text: {
+    flex: 1,
+    fontSize: 13,
+    color: colors.text,
+    lineHeight: 18,
+  },
+});
 
-  item: { color: colors.text },
-  muted: { color: colors.textMuted },
+function cryptoRandom() {
+  return Math.random().toString(36).slice(2) + Date.now().toString(36);
+}
 
-  err: { color: colors.danger },
-  errCenter: { color: colors.danger, textAlign: 'center', marginBottom: 8 },
+const styles = StyleSheet.create({
+  container: {
+    flex: 1,
+    backgroundColor: colors.background,
+  },
+  header: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    padding: spacing.lg,
+    borderBottomWidth: 1,
+    borderBottomColor: colors.border,
+  },
+  title: {
+    fontSize: 24,
+    fontWeight: '700',
+    color: colors.text,
+  },
+  apiBadge: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: spacing.xs,
+    paddingHorizontal: spacing.md,
+    paddingVertical: spacing.xs,
+    borderRadius: borderRadius.full,
+    borderWidth: 1,
+  },
+  apiOnline: {
+    backgroundColor: colors.success + '20',
+    borderColor: colors.success,
+  },
+  apiOffline: {
+    backgroundColor: colors.danger + '20',
+    borderColor: colors.danger,
+  },
+  apiDot: {
+    width: 6,
+    height: 6,
+    borderRadius: borderRadius.full,
+  },
+  apiDotOnline: {
+    backgroundColor: colors.success,
+  },
+  apiDotOffline: {
+    backgroundColor: colors.danger,
+  },
+  apiText: {
+    fontSize: 11,
+    fontWeight: '700',
+  },
+  errorBanner: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: spacing.sm,
+    backgroundColor: colors.dangerLight + '15',
+    padding: spacing.md,
+    marginHorizontal: spacing.lg,
+    marginTop: spacing.md,
+    borderRadius: borderRadius.md,
+    borderLeftWidth: 3,
+    borderLeftColor: colors.danger,
+  },
+  errorIcon: {
+    fontSize: 16,
+  },
+  errorText: {
+    flex: 1,
+    fontSize: 13,
+    color: colors.dangerLight,
+  },
+  tabsScroll: {
+    maxHeight: 60,
+  },
+  tabs: {
+    flexDirection: 'row',
+    gap: spacing.sm,
+    padding: spacing.lg,
+    paddingVertical: spacing.md,
+  },
+  content: {
+    padding: spacing.lg,
+    paddingBottom: spacing.xxl,
+  },
+  section: {
+    gap: spacing.lg,
+  },
+  inputGroup: {
+    gap: spacing.xs,
+  },
+  label: {
+    fontSize: 13,
+    fontWeight: '600',
+    color: colors.textSecondary,
+  },
+  input: {
+    backgroundColor: colors.inputBg,
+    padding: spacing.md,
+    borderRadius: borderRadius.md,
+    fontSize: 15,
+    color: colors.text,
+    borderWidth: 1,
+    borderColor: colors.inputBorder,
+  },
+  picker: {
+    backgroundColor: colors.inputBg,
+    borderRadius: borderRadius.md,
+    color: colors.text,
+  },
+  button: {
+    backgroundColor: colors.primary,
+    padding: spacing.lg,
+    borderRadius: borderRadius.md,
+    alignItems: 'center',
+    ...shadows.medium,
+  },
+  buttonText: {
+    color: colors.white,
+    fontSize: 15,
+    fontWeight: '700',
+  },
+  errorContainer: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: spacing.sm,
+    backgroundColor: colors.dangerLight + '15',
+    padding: spacing.md,
+    borderRadius: borderRadius.md,
+    borderLeftWidth: 3,
+    borderLeftColor: colors.danger,
+  },
+  errorTextInline: {
+    flex: 1,
+    fontSize: 13,
+    color: colors.dangerLight,
+  },
 });

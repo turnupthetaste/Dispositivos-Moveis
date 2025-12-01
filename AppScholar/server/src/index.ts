@@ -20,6 +20,13 @@ app.use(express.json());
 // Healthcheck
 app.get('/health', (_req, res) => res.json({ ok: true }));
 
+// ✨ NOVA FUNÇÃO: Resolve perfil baseado no domínio do email
+function resolveRole(email: string): string {
+  if (email.endsWith('@admin.com')) return 'ADMIN';
+  if (email.endsWith('@gestor.com') || email.endsWith('@manager.com')) return 'MANAGER';
+  return 'USER';
+}
+
 // Helpers
 function signToken(user: { id: string; email: string; role: string; name: string }) {
   return jwt.sign(
@@ -51,6 +58,7 @@ function authMiddleware(req: any, res: any, next: any) {
     return res.status(401).json({ message: 'Token inválido' });
   }
 }
+
 // ---- Rotas de Autenticação ----
 app.post('/auth/register', async (req, res) => {
   const { email, password, name, role } = req.body ?? {};
@@ -63,6 +71,9 @@ app.post('/auth/register', async (req, res) => {
   // se não vier name, usa a parte antes do @ como nome
   const finalName = name ?? String(email).split('@')[0];
 
+  // ✅ CORREÇÃO: Se não vier role do body, resolve pelo email
+  const finalRole = role ?? resolveRole(email);
+
   try {
     const exists = await prisma.user.findUnique({ where: { email } });
     if (exists) {
@@ -74,7 +85,7 @@ app.post('/auth/register', async (req, res) => {
         email,
         name: finalName,
         password: await hashPassword(password),
-        role: role ?? 'USER', // tudo que vier do app vira USER
+        role: finalRole, // ✅ Agora usa a lógica do email!
       },
     });
 
@@ -91,7 +102,7 @@ app.post('/auth/register', async (req, res) => {
         id: user.id,
         nome: user.name,
         email: user.email,
-        perfil: user.role.toLowerCase(), // 'user'
+        perfil: user.role.toLowerCase(), // 'admin', 'manager' ou 'user'
       },
     });
   } catch (e: any) {

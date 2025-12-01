@@ -1,8 +1,18 @@
+// src/screens/Registro.tsx
 import React, { useState } from 'react';
-import { SafeAreaView, View, TextInput, Text, TouchableOpacity, StyleSheet, ActivityIndicator } from 'react-native';
+import {
+  SafeAreaView,
+  View,
+  TextInput,
+  Text,
+  TouchableOpacity,
+  StyleSheet,
+  ActivityIndicator,
+} from 'react-native';
 import { NativeStackScreenProps } from '@react-navigation/native-stack';
 import { AuthStackParamList } from '../types';
 import { useAuth } from '../hooks/useAuth';
+import { colors, shadows, spacing, borderRadius } from '../theme/colors';
 
 type Props = NativeStackScreenProps<AuthStackParamList, 'Registro'>;
 
@@ -28,40 +38,248 @@ export default function Registro({ navigation }: Props) {
 
   return (
     <SafeAreaView style={styles.safe}>
-      <View style={styles.card}>
-        <Text style={styles.title}>REGISTRO</Text>
-        <Text style={styles.hint}>
-          Para testar perfis, use domínios como <Text style={styles.bold}>@admin.com</Text> (admin) ou{" "}
-          <Text style={styles.bold}>@gestor.com</Text> (manager).
-        </Text>
+      <View style={styles.container}>
+        {/* Header */}
+        <View style={styles.header}>
+          <View style={styles.iconContainer}>
+            <Text style={styles.icon}>✨</Text>
+          </View>
+          <Text style={styles.title}>Criar Conta</Text>
+          <Text style={styles.subtitle}>Comece sua jornada agora</Text>
+        </View>
 
-        <TextInput placeholder="E-mail" value={email} onChangeText={setEmail} style={styles.input}
-          autoCapitalize="none" autoComplete="email" autoCorrect={false} keyboardType="email-address" />
-        <TextInput placeholder="Senha" value={senha} onChangeText={setSenha} style={styles.input} secureTextEntry maxLength={20} />
-        <TextInput placeholder="Confirme a senha" value={conf} onChangeText={setConf} style={styles.input} secureTextEntry maxLength={20} />
+        {/* Card principal */}
+        <View style={styles.card}>
+          <Text style={styles.hint}>
+            💡 <Text style={styles.hintBold}>Dica de perfis:</Text> Use{' '}
+            <Text style={styles.hintEmphasis}>@admin.com</Text> para admin ou{' '}
+            <Text style={styles.hintEmphasis}>@gestor.com</Text> para gestor
+          </Text>
 
-        {!!erro && <Text style={styles.err}>{erro}</Text>}
+          <View style={styles.inputGroup}>
+            <Text style={styles.label}>E-mail</Text>
+            <TextInput
+              placeholder="seu@email.com"
+              placeholderTextColor={colors.textMuted}
+              value={email}
+              onChangeText={setEmail}
+              style={styles.input}
+              autoCapitalize="none"
+              autoComplete="email"
+              autoCorrect={false}
+              keyboardType="email-address"
+            />
+          </View>
 
-        <TouchableOpacity style={[styles.btn, { backgroundColor: '#28a745' }]} onPress={onRegister} disabled={carregando}>
-          {carregando ? <ActivityIndicator /> : <Text style={styles.btnText}>Criar conta</Text>}
-        </TouchableOpacity>
+          <View style={styles.inputGroup}>
+            <Text style={styles.label}>Senha</Text>
+            <TextInput
+              placeholder="Mínimo 4 caracteres"
+              placeholderTextColor={colors.textMuted}
+              value={senha}
+              onChangeText={setSenha}
+              style={styles.input}
+              secureTextEntry
+              maxLength={20}
+            />
+          </View>
 
-        <TouchableOpacity style={[styles.btn, { backgroundColor: '#6c757d' }]} onPress={() => navigation.navigate('Login')} disabled={carregando}>
-          <Text style={styles.btnText}>Voltar ao login</Text>
-        </TouchableOpacity>
+          <View style={styles.inputGroup}>
+            <Text style={styles.label}>Confirmar Senha</Text>
+            <TextInput
+              placeholder="Digite novamente"
+              placeholderTextColor={colors.textMuted}
+              value={conf}
+              onChangeText={setConf}
+              style={styles.input}
+              secureTextEntry
+              maxLength={20}
+            />
+          </View>
+
+          {!!erro && (
+            <View style={styles.errorContainer}>
+              <Text style={styles.errorIcon}>⚠️</Text>
+              <Text style={styles.errorText}>{erro}</Text>
+            </View>
+          )}
+
+          <TouchableOpacity
+            style={[styles.btnPrimary, carregando && styles.btnDisabled]}
+            onPress={onRegister}
+            disabled={carregando}
+            activeOpacity={0.8}
+          >
+            {carregando ? (
+              <ActivityIndicator color={colors.white} />
+            ) : (
+              <Text style={styles.btnPrimaryText}>Criar minha conta</Text>
+            )}
+          </TouchableOpacity>
+
+          <View style={styles.divider}>
+            <View style={styles.dividerLine} />
+            <Text style={styles.dividerText}>ou</Text>
+            <View style={styles.dividerLine} />
+          </View>
+
+          <TouchableOpacity
+            style={styles.btnSecondary}
+            onPress={() => navigation.navigate('Login')}
+            disabled={carregando}
+            activeOpacity={0.8}
+          >
+            <Text style={styles.btnSecondaryText}>Já tenho uma conta</Text>
+          </TouchableOpacity>
+        </View>
       </View>
     </SafeAreaView>
   );
 }
 
 const styles = StyleSheet.create({
-  safe: { flex: 1, backgroundColor: '#111', alignItems: 'center', justifyContent: 'center' },
-  card: { width: '90%', maxWidth: 320, gap: 12, backgroundColor: '#222', padding: 16, borderRadius: 8 },
-  title: { color: '#9acd32', alignSelf: 'center', marginBottom: 4, fontWeight: '700' },
-  hint: { color: '#bbb', fontSize: 12, marginBottom: 4, textAlign: 'center' },
-  bold: { fontWeight: '700', color: '#ddd' },
-  input: { backgroundColor: '#fff', padding: 12, borderRadius: 6 },
-  btn: { padding: 12, borderRadius: 6, alignItems: 'center' },
-  btnText: { color: '#fff', fontWeight: '700' },
-  err: { color: '#ff6b6b', textAlign: 'center' },
+  safe: {
+    flex: 1,
+    backgroundColor: colors.background,
+  },
+  container: {
+    flex: 1,
+    paddingHorizontal: spacing.lg,
+    justifyContent: 'center',
+    paddingVertical: spacing.xxl,
+  },
+  header: {
+    alignItems: 'center',
+    marginBottom: spacing.xxl,
+  },
+  iconContainer: {
+    width: 80,
+    height: 80,
+    borderRadius: borderRadius.full,
+    backgroundColor: colors.card,
+    alignItems: 'center',
+    justifyContent: 'center',
+    marginBottom: spacing.lg,
+    ...shadows.medium,
+  },
+  icon: {
+    fontSize: 40,
+  },
+  title: {
+    fontSize: 32,
+    fontWeight: '700',
+    color: colors.text,
+    marginBottom: spacing.xs,
+  },
+  subtitle: {
+    fontSize: 16,
+    color: colors.textMuted,
+  },
+  card: {
+    backgroundColor: colors.card,
+    borderRadius: borderRadius.lg,
+    padding: spacing.xl,
+    gap: spacing.lg,
+    borderWidth: 1,
+    borderColor: colors.border,
+    ...shadows.large,
+  },
+  hint: {
+    fontSize: 13,
+    color: colors.textMuted,
+    backgroundColor: colors.backgroundAlt,
+    padding: spacing.md,
+    borderRadius: borderRadius.md,
+    lineHeight: 18,
+    borderLeftWidth: 3,
+    borderLeftColor: colors.accent,
+  },
+  hintBold: {
+    fontWeight: '700',
+    color: colors.text,
+  },
+  hintEmphasis: {
+    fontWeight: '700',
+    color: colors.primary,
+  },
+  inputGroup: {
+    gap: spacing.sm,
+  },
+  label: {
+    fontSize: 14,
+    fontWeight: '600',
+    color: colors.textSecondary,
+  },
+  input: {
+    backgroundColor: colors.inputBg,
+    padding: spacing.md,
+    borderRadius: borderRadius.md,
+    fontSize: 16,
+    color: colors.text,
+    borderWidth: 1,
+    borderColor: colors.inputBorder,
+  },
+  errorContainer: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: spacing.sm,
+    backgroundColor: colors.dangerLight + '15',
+    padding: spacing.md,
+    borderRadius: borderRadius.md,
+    borderLeftWidth: 3,
+    borderLeftColor: colors.danger,
+  },
+  errorIcon: {
+    fontSize: 16,
+  },
+  errorText: {
+    flex: 1,
+    color: colors.dangerLight,
+    fontSize: 14,
+  },
+  btnPrimary: {
+    backgroundColor: colors.accent,
+    padding: spacing.lg,
+    borderRadius: borderRadius.md,
+    alignItems: 'center',
+    marginTop: spacing.sm,
+    ...shadows.medium,
+  },
+  btnPrimaryText: {
+    color: colors.white,
+    fontSize: 16,
+    fontWeight: '700',
+  },
+  btnDisabled: {
+    opacity: 0.6,
+  },
+  divider: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: spacing.md,
+    marginVertical: spacing.sm,
+  },
+  dividerLine: {
+    flex: 1,
+    height: 1,
+    backgroundColor: colors.border,
+  },
+  dividerText: {
+    color: colors.textMuted,
+    fontSize: 12,
+    fontWeight: '600',
+  },
+  btnSecondary: {
+    backgroundColor: colors.backgroundAlt,
+    padding: spacing.lg,
+    borderRadius: borderRadius.md,
+    alignItems: 'center',
+    borderWidth: 1,
+    borderColor: colors.borderLight,
+  },
+  btnSecondaryText: {
+    color: colors.primary,
+    fontSize: 16,
+    fontWeight: '600',
+  },
 });
